@@ -13,10 +13,19 @@ export function toScoredItem(item: NormalizedItem, decision: LlmDecision): Score
 
   return {
     ...item,
+    action: decision.action,
     category: decision.category,
+    content_type: decision.content_type,
+    inspiration: decision.inspiration ?? null,
+    product_name: decision.product_name ?? null,
+    product_one_liner: decision.product_one_liner ?? null,
+    product_takeaways: decision.product_takeaways ?? [],
     reason: decision.reason,
     score: clamp(Math.round(combined * 10), 1, 100),
-    summary: decision.summary
+    summary: decision.summary,
+    tags: decision.tags.length > 0 ? decision.tags : item.tags,
+    target_user: decision.target_user ?? null,
+    what_happened: decision.what_happened,
+    why_it_matters: decision.why_it_matters
   };
 }
-

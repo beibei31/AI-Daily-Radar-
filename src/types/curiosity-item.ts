@@ -11,11 +11,21 @@ export type CuriosityCategory =
   | "chemistry_materials"
   | "food_science"
   | "fashion_objects"
-  | "computing";
+  | "computing"
+  | "biology"
+  | "architecture"
+  | "language"
+  | "mechanical"
+  | "finance"
+  | "photography"
+  | "plants"
+  | "medical_history"
+  | "traffic_engineering";
 
 export type CuriosityItem = {
   id?: number;
   title: string;
+  question?: string | null;
   category: CuriosityCategory;
   hook: string;
   explanation: string;
@@ -24,6 +34,6 @@ export type CuriosityItem = {
   difficulty: number;
   source: string;
   source_url: string;
+  next_question?: string | null;
   created_at?: string | null;
 };
-

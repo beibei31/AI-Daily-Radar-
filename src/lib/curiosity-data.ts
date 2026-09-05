@@ -16,7 +16,16 @@ export const curiosityCategoryLabels: Record<CuriosityCategory, string> = {
   chemistry_materials: "化学 / 材料",
   food_science: "食物科学",
   fashion_objects: "时尚 / 日常物品",
-  computing: "计算机常识"
+  computing: "计算机常识",
+  biology: "生物",
+  architecture: "建筑",
+  language: "语言",
+  mechanical: "机械",
+  finance: "金融常识",
+  photography: "摄影",
+  plants: "植物",
+  medical_history: "医学史",
+  traffic_engineering: "交通 / 工程"
 };
 
 export const curiosityCatalog: CuriosityItem[] = [
@@ -175,10 +184,127 @@ export const curiosityCatalog: CuriosityItem[] = [
     source: "DENSO WAVE QR Code.com",
     source_url: "https://www.qrcode.com/en/about/error_correction.html",
     title: "QR Code 为什么能纠错？"
+  },
+  {
+    category: "architecture",
+    difficulty: 2,
+    explanation:
+      "尖拱可以把顶部重量更有效地分散到两侧支撑结构上，让建筑能够做得更高、更轻，并留出更大的窗户。哥特式教堂里的飞扶壁和彩色玻璃窗，都和这种结构逻辑有关。",
+    hook: "哥特式建筑的尖拱不只是审美，它是一种工程解法。",
+    key_fact: "尖拱让重量更好地向侧下方传递，使高耸空间和大窗户成为可能。",
+    next_question: "为什么飞扶壁能让墙变薄？",
+    related_topics: ["尖拱", "飞扶壁", "彩色玻璃"],
+    source: "Encyclopaedia Britannica",
+    source_url: "https://www.britannica.com/art/Gothic-architecture",
+    title: "哥特式建筑为什么喜欢尖拱？"
+  },
+  {
+    category: "mechanical",
+    difficulty: 3,
+    explanation:
+      "唱片沟槽并不是普通圆圈，而是连续变化的微小波形。唱针沿着沟槽移动时会产生振动，唱头把这种机械振动转换成电信号，再经过放大和扬声器还原成声音。",
+    hook: "黑胶唱片里的声音，真的藏在一圈圈细小的起伏里。",
+    key_fact: "唱片用沟槽的物理起伏保存声音波形，播放时再把振动转回电信号。",
+    next_question: "为什么黑胶唱片越靠内圈音质越难保持？",
+    related_topics: ["模拟信号", "唱针", "波形"],
+    source: "Library of Congress",
+    source_url: "https://www.loc.gov/collections/selected-digitized-books/articles-and-essays/history-of-the-cylinder-phonograph/",
+    title: "唱片为什么能保存声音？"
+  },
+  {
+    category: "photography",
+    difficulty: 2,
+    explanation:
+      "光圈值 f-number 是镜头焦距和入瞳直径的比值。数字越小，实际进光孔径越大，进光更多、景深更浅；数字越大，进光更少、景深更深。",
+    hook: "相机里 f/1.8 反而比 f/8 光圈更大。",
+    key_fact: "光圈数字越小，进光孔径越大，背景虚化通常越明显。",
+    next_question: "为什么小光圈会让星芒更明显？",
+    related_topics: ["光圈", "景深", "曝光"],
+    source: "Nikon Learn and Explore",
+    source_url: "https://www.nikonusa.com/learn-and-explore/c/tips-and-techniques/understanding-maximum-aperture",
+    title: "为什么光圈数字越小，光圈反而越大？"
+  },
+  {
+    category: "language",
+    difficulty: 2,
+    explanation:
+      "文字不是一次性发明成现在的样子。很多早期文字从图像记号开始，逐渐抽象成符号，再进一步承担声音、语法和记录复杂事务的功能。",
+    hook: "文字一开始更像图画，后来才越来越像符号系统。",
+    key_fact: "文字系统通常经历从图像记录到抽象符号、再到记录语言结构的演化。",
+    next_question: "为什么有些文字表意，有些文字表音？",
+    related_topics: ["象形文字", "楔形文字", "表音文字"],
+    source: "The British Museum",
+    source_url: "https://www.britishmuseum.org/blog/how-writing-began",
+    title: "文字是怎么从图画变成符号的？"
+  },
+  {
+    category: "biology",
+    difficulty: 3,
+    explanation:
+      "DNA 的双螺旋结构让碱基可以按 A-T、C-G 配对。复制时，两条链分开，每条旧链都能作为模板生成一条新链，因此遗传信息可以相对稳定地传递。",
+    hook: "DNA 像一本可以靠互补规则自动复制的说明书。",
+    key_fact: "碱基互补配对让 DNA 能用旧链作为模板复制新链。",
+    next_question: "为什么 DNA 复制仍然会出现突变？",
+    related_topics: ["双螺旋", "碱基配对", "遗传"],
+    source: "National Human Genome Research Institute",
+    source_url: "https://www.genome.gov/about-genomics/fact-sheets/DNA-Fact-Sheet",
+    title: "DNA 为什么能复制遗传信息？"
+  },
+  {
+    category: "plants",
+    difficulty: 2,
+    explanation:
+      "树木年轮来自生长速度的季节差异。生长季早期形成的细胞较大、颜色较浅，晚期细胞较小、颜色较深，于是横截面上形成一圈圈纹理。",
+    hook: "年轮不是树刻意记录年份，而是生长节奏留下的痕迹。",
+    key_fact: "年轮反映树木在不同季节生长快慢和细胞结构的变化。",
+    next_question: "为什么干旱年份的年轮通常更窄？",
+    related_topics: ["树木生长", "气候记录", "年轮学"],
+    source: "NOAA Climate.gov",
+    source_url: "https://www.climate.gov/news-features/climate-qa/how-do-scientists-use-tree-rings-study-past-climates",
+    title: "树的年轮为什么能记录年份？"
+  },
+  {
+    category: "finance",
+    difficulty: 2,
+    explanation:
+      "复利的关键是利息会变成本金的一部分，下一期继续产生利息。时间越长，增长越不像直线，而更接近滚雪球式的曲线。",
+    hook: "复利厉害的地方，不是利率大，而是时间会参与计算。",
+    key_fact: "复利让收益继续产生收益，时间越长效果越明显。",
+    next_question: "为什么同样年化收益率，波动越大复合收益可能越低？",
+    related_topics: ["本金", "年化收益率", "时间价值"],
+    source: "Investor.gov",
+    source_url: "https://www.investor.gov/financial-tools-calculators/calculators/compound-interest-calculator",
+    title: "复利为什么会越滚越快？"
+  },
+  {
+    category: "medical_history",
+    difficulty: 2,
+    explanation:
+      "现代麻醉出现之前，外科手术必须极快完成，因为病人要承受巨大疼痛。乙醚和氯仿等麻醉技术被引入后，医生才有条件进行更复杂、更精细的手术。",
+    hook: "麻醉改变的不是止痛这么简单，而是整个外科的可能性。",
+    key_fact: "麻醉让手术从争分夺秒变成可以精细操作的医学技术。",
+    next_question: "为什么早期麻醉既革命性又危险？",
+    related_topics: ["乙醚", "外科史", "疼痛管理"],
+    source: "Science Museum",
+    source_url: "https://www.sciencemuseum.org.uk/objects-and-stories/medicine/pain-relief-history-anaesthesia",
+    title: "麻醉为什么改变了外科手术？"
+  },
+  {
+    category: "traffic_engineering",
+    difficulty: 2,
+    explanation:
+      "红绿灯不是简单轮流亮，而是在安全、通行效率和行人需求之间做时间分配。现代路口还会结合车流检测、转向车道和协调控制，减少等待与冲突。",
+    hook: "一个红绿灯背后，其实是在分配城市路口的时间资源。",
+    key_fact: "红绿灯通过时间分配减少冲突，并在安全和通行效率之间折中。",
+    next_question: "为什么有些路口左转要单独放行？",
+    related_topics: ["交通流", "信号配时", "行人安全"],
+    source: "Federal Highway Administration",
+    source_url: "https://ops.fhwa.dot.gov/publications/fhwahop08024/chapter3.htm",
+    title: "红绿灯是怎么决定谁先走的？"
   }
 ];
 
-export const mockCuriosityItems = curiosityCatalog.slice(0, 3);
+export const mockCuriosityItems = pickCuriosityItemsForDate(new Date(), 3);
 
 export function pickCuriosityItemsForDate(
   date: Date,
@@ -195,4 +321,3 @@ export function pickCuriosityItemsForDate(
 
   return selected;
 }
-

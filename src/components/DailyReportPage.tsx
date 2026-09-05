@@ -3,8 +3,9 @@
 import * as React from "react";
 import { createClient } from "@supabase/supabase-js";
 import { DailyCard } from "@/src/components/DailyCard";
-import { getCategoryLabel, sectionMeta } from "@/src/lib/categories";
+import { ProductPatternCard } from "@/src/components/ProductPatternCard";
 import {
+  curiosityCatalog,
   curiosityCategoryLabels,
   mockCuriosityItems
 } from "@/src/lib/curiosity-data";
@@ -15,23 +16,64 @@ import type {
   CuriosityItem
 } from "@/src/types/curiosity-item";
 import type { DailyItem } from "@/src/types/daily-item";
+import { isProductPattern } from "@/src/types/product-pattern";
 
 type DailyReportState = {
   date: Date;
   curiosityIndex: number;
+  surpriseIndex: number;
   curiosityItems: CuriosityItem[];
   isFallback: boolean;
   isLoading: boolean;
   items: DailyItem[];
 };
 
+type RevealState = {
+  curiosity: boolean;
+  surprise: boolean;
+};
+
 const curiosityStorageKey = "ai-daily-radar-curiosity-interests";
 
+function itemKey(item: DailyItem | CuriosityItem) {
+  return "url" in item ? item.url || `${item.source}-${item.title}` : item.title;
+}
+
+function sortByScore(items: DailyItem[]) {
+  return [...items].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
 function getTopItems(items: DailyItem[]) {
-  return [...items]
+  return sortByScore(items)
     .filter((item) => item.category !== "try_today")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
     .slice(0, 3);
+}
+
+function getSectionItems(
+  items: DailyItem[],
+  categories: DailyItem["category"][],
+  limit: number,
+  excludedKeys: Set<string>
+) {
+  return sortByScore(items)
+    .filter((item) => categories.includes(item.category))
+    .filter((item) => !excludedKeys.has(itemKey(item)))
+    .slice(0, limit);
+}
+
+function mergeCuriosityItems(primary: CuriosityItem[]) {
+  const seen = new Set<string>();
+
+  return [...primary, ...curiosityCatalog].filter((item) => {
+    const key = item.title;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function Section({
@@ -59,11 +101,40 @@ function Section({
       {items.length > 0 ? (
         <div className={items.length === 1 ? "grid two" : "grid"}>
           {items.map((item) => (
-            <DailyCard key={`${item.url}-${item.title}`} compact={compact} item={item} />
+            <DailyCard
+              key={`${itemKey(item)}-${item.category}-${item.score ?? 0}`}
+              compact={compact}
+              item={item}
+            />
           ))}
         </div>
       ) : (
         <div className="empty">今天暂时没有进入该分类的高质量信息。</div>
+      )}
+    </section>
+  );
+}
+
+function ProductPatternsSection({ items }: { items: DailyItem[] }) {
+  const products = items.filter(isProductPattern);
+
+  return (
+    <section className="section product-section">
+      <div className="section-header">
+        <div className="section-title">
+          <span aria-hidden className="marker product" />
+          <h2>🧪 Product Patterns</h2>
+        </div>
+        <span className="section-count">{products.length} 个产品</span>
+      </div>
+      {products.length > 0 ? (
+        <div className="product-list">
+          {products.map((item) => (
+            <ProductPatternCard key={`${itemKey(item)}-${item.score ?? 0}`} item={item} />
+          ))}
+        </div>
+      ) : (
+        <div className="empty">今天暂时没有值得单独拆解的产品。</div>
       )}
     </section>
   );
@@ -148,7 +219,7 @@ async function loadDailyItems(date: Date): Promise<DailyItem[] | null> {
     .gte("created_at", bounds.start.toISOString())
     .lt("created_at", bounds.end.toISOString())
     .order("score", { ascending: false })
-    .limit(40);
+    .limit(60);
 
   if (error || !data || data.length === 0) {
     return null;
@@ -186,27 +257,37 @@ async function loadCuriosityItems(date: Date): Promise<CuriosityItem[] | null> {
   return data as CuriosityItem[];
 }
 
-function CuriosityCard({
+function curiosityQuestion(item: CuriosityItem) {
+  return item.question || item.title;
+}
+
+function CuriosityRevealCard({
   item,
-  onLearnAnother,
-  onRecordInterest,
-  onSurprise
+  marker,
+  title,
+  countLabel,
+  revealed,
+  onReveal,
+  onNext,
+  nextLabel
 }: {
   item: CuriosityItem;
-  onLearnAnother(): void;
-  onRecordInterest(): void;
-  onSurprise(): void;
+  marker: string;
+  title: string;
+  countLabel: string;
+  revealed: boolean;
+  onReveal(): void;
+  onNext(): void;
+  nextLabel: string;
 }) {
   return (
     <section className="section curiosity-section">
       <div className="section-header">
         <div className="section-title">
-          <span aria-hidden className="marker curiosity" />
-          <h2>🧠 Curiosity of the Day</h2>
+          <span aria-hidden className={`marker ${marker}`} />
+          <h2>{title}</h2>
         </div>
-        <button className="ghost-button" onClick={onSurprise} type="button">
-          🎲 Surprise Me
-        </button>
+        <span className="section-count">{countLabel}</span>
       </div>
 
       <article className="curiosity-card">
@@ -215,40 +296,49 @@ function CuriosityCard({
             <span>{curiosityCategoryLabels[item.category]}</span>
             <span>Difficulty {item.difficulty}/5</span>
           </div>
-          <h3>{item.title}</h3>
+          <h3>{curiosityQuestion(item)}</h3>
           <p className="curiosity-hook">{item.hook}</p>
         </div>
 
-        <div className="curiosity-body">
-          <div>
-            <h4>这是什么？</h4>
-            <p>{item.explanation}</p>
-          </div>
-          <div>
-            <h4>最值得记住的一句话</h4>
-            <p>{item.key_fact}</p>
-          </div>
-        </div>
+        {revealed ? (
+          <>
+            <div className="curiosity-body">
+              <div>
+                <h4>这是什么？</h4>
+                <p>{item.explanation}</p>
+              </div>
+              <div>
+                <h4>记住一句</h4>
+                <p>{item.key_fact}</p>
+              </div>
+            </div>
 
-        <div className="topic-row">
-          {item.related_topics.map((topic) => (
-            <span key={topic}>{topic}</span>
-          ))}
-        </div>
+            <div className="topic-row">
+              {item.related_topics.map((topic) => (
+                <span key={topic}>{topic}</span>
+              ))}
+            </div>
+
+            {item.next_question ? (
+              <p className="next-question">想继续：{item.next_question}</p>
+            ) : null}
+          </>
+        ) : null}
 
         <div className="card-footer">
-          <a
-            className="link"
-            href={item.source_url}
-            onClick={onRecordInterest}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {item.source}
-          </a>
-          <button className="link button-link" onClick={onLearnAnother} type="button">
-            再学一个
-          </button>
+          <div className="curiosity-actions">
+            <button className="primary-button" onClick={onReveal} type="button">
+              Reveal Answer
+            </button>
+            <button className="ghost-button" onClick={onNext} type="button">
+              {nextLabel}
+            </button>
+          </div>
+          {revealed ? (
+            <a className="link" href={item.source_url} rel="noreferrer" target="_blank">
+              {item.source}
+            </a>
+          ) : null}
         </div>
       </article>
     </section>
@@ -256,13 +346,18 @@ function CuriosityCard({
 }
 
 export function DailyReportPage() {
+  const [revealed, setRevealed] = React.useState<RevealState>({
+    curiosity: false,
+    surprise: false
+  });
   const [report, setReport] = React.useState<DailyReportState>({
     curiosityIndex: 0,
-    curiosityItems: mockCuriosityItems,
+    curiosityItems: mergeCuriosityItems(mockCuriosityItems),
     date: new Date(),
     isFallback: true,
     isLoading: true,
-    items: mockDailyItems
+    items: mockDailyItems,
+    surpriseIndex: 1
   });
 
   React.useEffect(() => {
@@ -275,13 +370,18 @@ export function DailyReportPage() {
           return;
         }
 
+        const mergedCuriosityItems = mergeCuriosityItems(
+          curiosityItems ?? mockCuriosityItems
+        );
+
         setReport({
           curiosityIndex: 0,
-          curiosityItems: curiosityItems ?? mockCuriosityItems,
+          curiosityItems: mergedCuriosityItems,
           date,
           isFallback: !items || !curiosityItems,
           isLoading: false,
-          items: items ?? mockDailyItems
+          items: items ?? mockDailyItems,
+          surpriseIndex: mergedCuriosityItems.length > 1 ? 1 : 0
         });
       })
       .catch(() => {
@@ -291,11 +391,12 @@ export function DailyReportPage() {
 
         setReport({
           curiosityIndex: 0,
-          curiosityItems: mockCuriosityItems,
+          curiosityItems: mergeCuriosityItems(mockCuriosityItems),
           date,
           isFallback: true,
           isLoading: false,
-          items: mockDailyItems
+          items: mockDailyItems,
+          surpriseIndex: 1
         });
       });
 
@@ -305,11 +406,30 @@ export function DailyReportPage() {
   }, []);
 
   const topItems = getTopItems(report.items);
+  const topKeys = new Set(topItems.map(itemKey));
+  const techItems = getSectionItems(
+    report.items,
+    ["ai_news", "tool", "try_today"],
+    8,
+    topKeys
+  );
+  const productItems = getSectionItems(report.items, ["product"], 2, topKeys);
+  const opportunityItems = getSectionItems(
+    report.items,
+    ["hackathon"],
+    3,
+    topKeys
+  );
   const curiosityItem =
     report.curiosityItems[report.curiosityIndex] ?? mockCuriosityItems[0];
+  const surpriseItem =
+    report.curiosityItems[report.surpriseIndex] ??
+    report.curiosityItems[0] ??
+    mockCuriosityItems[0];
 
   function handleLearnAnother() {
     recordCuriosityInterest(curiosityItem.category);
+    setRevealed((current) => ({ ...current, curiosity: false }));
     setReport((current) => ({
       ...current,
       curiosityIndex: pickCuriosityIndex(
@@ -321,14 +441,25 @@ export function DailyReportPage() {
   }
 
   function handleSurprise() {
+    setRevealed((current) => ({ ...current, surprise: false }));
     setReport((current) => ({
       ...current,
-      curiosityIndex: pickCuriosityIndex(
+      surpriseIndex: pickCuriosityIndex(
         current.curiosityItems,
-        current.curiosityIndex,
+        current.surpriseIndex,
         "surprise"
       )
     }));
+  }
+
+  function revealCuriosity() {
+    recordCuriosityInterest(curiosityItem.category);
+    setRevealed((current) => ({ ...current, curiosity: true }));
+  }
+
+  function revealSurprise() {
+    recordCuriosityInterest(surpriseItem.category);
+    setRevealed((current) => ({ ...current, surprise: true }));
   }
 
   return (
@@ -336,11 +467,8 @@ export function DailyReportPage() {
       <header className="topbar">
         <div>
           <p className="eyebrow">AI Daily Radar</p>
-          <h1>Good Morning ☀️</h1>
-          <p className="subtitle">
-            Tech Radar 追踪 AI / Agent / Coding / 开发者资讯；Curiosity Radar
-            每天帮你发现一点新世界。
-          </p>
+          <h1>Good Morning</h1>
+          <p className="subtitle">每天帮你筛选、解释、启发，也发现一点新世界。</p>
         </div>
         <div className="date-pill">{formatShanghaiDate(report.date)}</div>
       </header>
@@ -356,34 +484,50 @@ export function DailyReportPage() {
       ) : null}
 
       <Section
-        countLabel="优先级最高"
+        countLabel="今天最值得知道的 3 条"
         items={topItems}
         marker="hot"
         title="🔥 Today"
       />
 
-      {sectionMeta.map((section) => {
-        const items = report.items
-          .filter((item) => item.category === section.category)
-          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-          .slice(0, section.limit);
+      <Section
+        compact
+        countLabel={`${techItems.length} 条`}
+        items={techItems}
+        marker=""
+        title="🤖 Tech Radar"
+      />
 
-        return (
-          <Section
-            compact
-            items={items}
-            key={section.category}
-            marker={section.marker}
-            title={getCategoryLabel(section.category)}
-          />
-        );
-      })}
+      <ProductPatternsSection items={productItems} />
 
-      <CuriosityCard
+      <Section
+        compact
+        countLabel={`${opportunityItems.length} 条`}
+        items={opportunityItems}
+        marker="hackathon"
+        title="🏆 Opportunities"
+      />
+
+      <CuriosityRevealCard
+        countLabel="今日问题"
         item={curiosityItem}
-        onLearnAnother={handleLearnAnother}
-        onRecordInterest={() => recordCuriosityInterest(curiosityItem.category)}
-        onSurprise={handleSurprise}
+        marker="curiosity"
+        nextLabel="再学一个"
+        onNext={handleLearnAnother}
+        onReveal={revealCuriosity}
+        revealed={revealed.curiosity}
+        title="🧠 Curiosity"
+      />
+
+      <CuriosityRevealCard
+        countLabel="随机陌生领域"
+        item={surpriseItem}
+        marker="surprise"
+        nextLabel="换一个领域"
+        onNext={handleSurprise}
+        onReveal={revealSurprise}
+        revealed={revealed.surprise}
+        title="🎲 Surprise Me"
       />
     </main>
   );

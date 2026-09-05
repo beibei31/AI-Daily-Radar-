@@ -5,7 +5,16 @@
 产品有两条内容主线：
 
 - Tech Radar：AI / Agent / Coding / 开发者资讯。
-- Curiosity Radar：每天学习 1-3 个有趣、小众、值得记住的知识。
+- Curiosity Radar：每天用问题式卡片学习 1 个有趣、小众、值得记住的知识，并保留随机探索。
+
+首页保留 6 个区块：
+
+- 🔥 Today：今天最值得知道的 3 条。
+- 🤖 Tech Radar：AI / Agent / Coding / 开源，合并工具类内容。
+- 🧪 Product Patterns：每天拆 1-2 个值得学习的产品。
+- 🏆 Opportunities：Hackathon / 比赛 / 活动。
+- 🧠 Curiosity：先给问题，点击后显示解释。
+- 🎲 Surprise Me：随机探索陌生领域。
 
 ## Stack
 
@@ -25,7 +34,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Without Supabase env vars, the static homepage displays mock data so UI work and deployment checks still run. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
+Without Supabase env vars, the static homepage displays richer mock data so UI work and deployment checks still run. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
 
 ## Supabase Setup
 
@@ -64,12 +73,28 @@ fetch_sources()
   -> filter_by_recency()
   -> rank_with_llm()
   -> categorize()
-  -> summarize()
+  -> explain()
+  -> extract_product_patterns()
   -> generate_curiosity()
   -> save_to_supabase()
 ```
 
 If `LLM_API_KEY` is absent, the pipeline uses deterministic keyword scoring. This keeps local development free and prevents scheduled runs from failing due only to a missing model key.
+
+For each Tech item, the LLM or fallback now writes:
+
+- `tags`
+- `what_happened`
+- `why_it_matters`
+- `action`
+
+For product items, it also writes:
+
+- `product_name`
+- `product_one_liner`
+- `target_user`
+- `product_takeaways`
+- `inspiration`
 
 Default V1 sources:
 
@@ -92,7 +117,7 @@ Chinese community sources are second-tier discovery sources. They are keyword-fi
 EXTRA_TECH_RSS_SOURCES="稀土掘金|https://example.com/juejin-feed;CSDN|https://example.com/csdn-feed"
 ```
 
-Curiosity content is generated from a curated, source-backed concept pool by default. This avoids pseudo-science and keeps daily runs free. The homepage stores Curiosity category interest counts in `localStorage` and selects roughly 70% from known interests and 30% from less-seen categories when the user clicks "再学一个"; "Surprise Me" intentionally explores unfamiliar categories.
+Curiosity content is generated from a curated, source-backed concept pool by default. This avoids pseudo-science and keeps daily runs free. The homepage stores Curiosity category interest counts in `localStorage` and selects roughly 70% from known interests and 30% from less-seen categories when the user clicks "再学一个"; "Surprise Me" intentionally explores unfamiliar categories and reveals answers only after the user opens them.
 
 ## Daily Schedule
 
@@ -122,7 +147,9 @@ Included:
 - RSS/API source adapter structure
 - GitHub, Hacker News, Brabble Hackathons, InfoQ 中文, OSChina, and RSS sources
 - LLM-compatible ranking/categorization/summarization
-- Curiosity of the Day with "再学一个" and "Surprise Me"
+- Tags, "what happened / why care / action" explanations
+- Product Pattern cards
+- Question-first Curiosity with "再学一个" and "Surprise Me"
 - GitHub Actions scheduler
 
 Not included:

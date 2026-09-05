@@ -9,11 +9,11 @@ export const categories: Category[] = [
 ];
 
 export const categoryLabels: Record<Category, string> = {
-  ai_news: "🤖 AI Radar",
-  tool: "🛠 Cool Tools",
-  product: "💡 Build",
+  ai_news: "🤖 Tech Radar",
+  tool: "🤖 Tech Radar",
+  product: "🧪 Product Patterns",
   hackathon: "🏆 Opportunities",
-  try_today: "🌱 Today Try"
+  try_today: "🤖 Tech Radar"
 };
 
 export const sectionMeta: Array<{
@@ -21,10 +21,10 @@ export const sectionMeta: Array<{
   marker: string;
   limit: number;
 }> = [
-  { category: "ai_news", marker: "", limit: 6 },
-  { category: "tool", marker: "tool", limit: 6 },
-  { category: "hackathon", marker: "hackathon", limit: 4 },
-  { category: "product", marker: "product", limit: 4 }
+  { category: "ai_news", marker: "", limit: 8 },
+  { category: "tool", marker: "", limit: 8 },
+  { category: "product", marker: "product", limit: 2 },
+  { category: "hackathon", marker: "hackathon", limit: 3 }
 ];
 
 export function getCategoryLabel(category: Category) {

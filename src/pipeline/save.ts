@@ -5,15 +5,29 @@ import type { CuriosityItem } from "@/src/types/curiosity-item";
 import type { ScoredItem } from "@/src/pipeline/types";
 
 function toRow(item: ScoredItem) {
+  const imageUrl =
+    typeof item.metadata.image_url === "string" ? item.metadata.image_url : null;
+
   return {
+    action: item.action,
     category: item.category,
+    content_type: item.content_type,
+    image_url: imageUrl,
+    inspiration: item.inspiration ?? null,
     published_at: item.publishedAt,
+    product_name: item.product_name ?? null,
+    product_one_liner: item.product_one_liner ?? null,
+    product_takeaways: item.product_takeaways ?? [],
     reason: item.reason,
     score: item.score,
     source: item.source,
     summary: item.summary,
+    tags: item.tags,
+    target_user: item.target_user ?? null,
     title: item.title,
-    url: item.canonicalUrl || item.url
+    url: item.canonicalUrl || item.url,
+    what_happened: item.what_happened,
+    why_it_matters: item.why_it_matters
   };
 }
 
@@ -77,6 +91,8 @@ function toCuriosityRow(item: CuriosityItem) {
     explanation: item.explanation,
     hook: item.hook,
     key_fact: item.key_fact,
+    next_question: item.next_question ?? null,
+    question: item.question ?? item.title,
     related_topics: item.related_topics,
     source: item.source,
     source_url: item.source_url,

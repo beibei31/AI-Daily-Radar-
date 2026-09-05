@@ -12,6 +12,19 @@ function formatSource(item: DailyItem) {
   return [item.source, published].filter(Boolean).join(" / ");
 }
 
+function detail(label: string, value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <div className="card-detail">
+      <span>{label}</span>
+      <p>{value}</p>
+    </div>
+  );
+}
+
 export function DailyCard({
   item,
   compact = false
@@ -20,6 +33,9 @@ export function DailyCard({
   compact?: boolean;
 }) {
   const href = item.url || "#";
+  const tags = item.tags?.slice(0, 5) ?? [];
+  const whatHappened = item.what_happened || item.summary;
+  const whyItMatters = item.why_it_matters || item.reason;
 
   return (
     <article className={`card ${compact ? "compact" : ""}`}>
@@ -30,8 +46,18 @@ export function DailyCard({
             {item.score ?? 0}
           </span>
         </div>
-        {item.summary ? <p className="summary">{item.summary}</p> : null}
-        {item.reason ? <p className="reason">{item.reason}</p> : null}
+        {tags.length > 0 ? (
+          <div className="tag-row" aria-label="tags">
+            {tags.map((tag) => (
+              <span className="tag" key={tag}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {detail("发生了什么", whatHappened)}
+        {detail("为什么值得看", whyItMatters)}
+        {detail("可以怎么用", item.action)}
       </div>
       <div className="card-footer">
         <span className="source">{formatSource(item)}</span>
@@ -44,4 +70,3 @@ export function DailyCard({
     </article>
   );
 }
-

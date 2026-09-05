@@ -1,4 +1,4 @@
-import type { Category } from "@/src/types/daily-item";
+import type { Category, ContentType } from "@/src/types/daily-item";
 
 export type RawSourceItem = {
   id: string;
@@ -29,17 +29,37 @@ export type NormalizedItem = {
 export type LlmDecision = {
   keep: boolean;
   category: Category;
+  content_type: ContentType;
   importance: number;
   personal_score: number;
   summary: string;
   reason: string;
+  tags: string[];
+  what_happened: string;
+  why_it_matters: string;
+  action: string;
+  product_name?: string | null;
+  product_one_liner?: string | null;
+  target_user?: string | null;
+  product_takeaways?: string[];
+  inspiration?: string | null;
 };
 
 export type ScoredItem = NormalizedItem & {
   category: Category;
+  content_type: ContentType;
   score: number;
   summary: string;
   reason: string;
+  tags: string[];
+  what_happened: string;
+  why_it_matters: string;
+  action: string;
+  product_name?: string | null;
+  product_one_liner?: string | null;
+  target_user?: string | null;
+  product_takeaways?: string[];
+  inspiration?: string | null;
 };
 
 export type SourceAdapter = {
@@ -47,4 +67,3 @@ export type SourceAdapter = {
   label: string;
   fetchItems(): Promise<RawSourceItem[]>;
 };
-
