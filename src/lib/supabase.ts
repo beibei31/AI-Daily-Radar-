@@ -1,7 +1,32 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  createClient,
+  type RealtimeClientOptions,
+  type SupabaseClient
+} from "@supabase/supabase-js";
 
 let cachedReadClient: SupabaseClient | null = null;
 let cachedWriteClient: SupabaseClient | null = null;
+
+class DisabledRealtimeTransport {
+  constructor() {
+    throw new Error("Supabase Realtime is disabled for server-side pipeline clients.");
+  }
+}
+
+const disabledRealtimeTransport =
+  DisabledRealtimeTransport as unknown as NonNullable<
+    RealtimeClientOptions["transport"]
+  >;
+
+const serverClientOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  },
+  realtime: {
+    transport: disabledRealtimeTransport
+  }
+};
 
 export function hasSupabaseReadEnv() {
   return Boolean(
@@ -28,11 +53,7 @@ export function getSupabaseReadClient() {
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
         process.env.SUPABASE_SECRET_KEY ||
         "",
-      {
-        auth: {
-          persistSession: false
-        }
-      }
+      serverClientOptions
     );
   }
 
@@ -48,11 +69,7 @@ export function getSupabaseWriteClient() {
     cachedWriteClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
       process.env.SUPABASE_SECRET_KEY || "",
-      {
-        auth: {
-          persistSession: false
-        }
-      }
+      serverClientOptions
     );
   }
 

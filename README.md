@@ -64,6 +64,14 @@ Run manually:
 npm run pipeline
 ```
 
+Before debugging the full pipeline, run the minimal LLM smoke test:
+
+```bash
+npm run test:llm
+```
+
+It loads local env vars, calls the configured OpenAI-compatible `/chat/completions` endpoint once, and expects exactly `{"ok":true}`. It logs endpoint, model, HTTP status, finish reason, content length, and whether reasoning content exists, but never prints API keys.
+
 Pipeline:
 
 ```text
@@ -80,6 +88,18 @@ fetch_sources()
 ```
 
 If `LLM_API_KEY` is absent, the pipeline uses deterministic keyword scoring. This keeps local development free and prevents scheduled runs from failing due only to a missing model key.
+
+For DeepSeek-compatible models such as `deepseek-v4-flash`, the provider disables thinking mode for structured classification with:
+
+```json
+{
+  "thinking": {
+    "type": "disabled"
+  }
+}
+```
+
+The provider also uses JSON output mode, retries empty model content up to 3 attempts with exponential backoff, and falls back to heuristic scoring only after those attempts fail.
 
 For each Tech item, the LLM or fallback now writes:
 
