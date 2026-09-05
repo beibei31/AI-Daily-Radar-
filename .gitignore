@@ -1,9 +1,11 @@
 .next
 node_modules
+.idea
 dist
 out
 coverage
 .env
+.env.local
 .env*.local
 !.env.example
 npm-debug.log*

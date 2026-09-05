@@ -6,14 +6,14 @@ let cachedWriteClient: SupabaseClient | null = null;
 export function hasSupabaseReadEnv() {
   return Boolean(
     (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL) &&
-      (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
+      (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_SECRET_KEY)
   );
 }
 
 export function hasSupabaseWriteEnv() {
   return Boolean(
     (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL) &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY
+      process.env.SUPABASE_SECRET_KEY
   );
 }
 
@@ -25,8 +25,8 @@ export function getSupabaseReadClient() {
   if (!cachedReadClient) {
     cachedReadClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.SUPABASE_SECRET_KEY ||
         "",
       {
         auth: {
@@ -47,7 +47,7 @@ export function getSupabaseWriteClient() {
   if (!cachedWriteClient) {
     cachedWriteClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "",
-      process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+      process.env.SUPABASE_SECRET_KEY || "",
       {
         auth: {
           persistSession: false
@@ -58,4 +58,3 @@ export function getSupabaseWriteClient() {
 
   return cachedWriteClient;
 }
-

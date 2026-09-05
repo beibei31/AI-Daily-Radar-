@@ -25,7 +25,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Without Supabase env vars, the static homepage displays mock data so UI work and deployment checks still run. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
+Without Supabase env vars, the static homepage displays mock data so UI work and deployment checks still run. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
 
 ## Supabase Setup
 
@@ -35,17 +35,17 @@ Without Supabase env vars, the static homepage displays mock data so UI work and
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 LLM_API_KEY=
-LLM_API_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini
+LLM_API_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
 GITHUB_TOKEN=
 CURIOSITY_ITEMS_PER_DAY=3
 EXTRA_TECH_RSS_SOURCES=
 ```
 
-For V1, keep Row Level Security simple. The GitHub Actions pipeline should use `SUPABASE_SERVICE_ROLE_KEY` for writes. The static homepage uses the anon key for reads, so `daily_items` and `curiosity_items` need public read access or a view/policy scoped to this single-user app.
+For V1, keep Row Level Security simple. The GitHub Actions pipeline should use `SUPABASE_SECRET_KEY` for writes. The static homepage uses the publishable key for reads, so `daily_items` and `curiosity_items` need public read access or a view/policy scoped to this single-user app.
 
 ## Pipeline
 

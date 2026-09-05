@@ -78,8 +78,8 @@ async function callLlm(batch: NormalizedItem[]) {
     return null;
   }
 
-  const baseUrl = (process.env.LLM_API_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-  const model = process.env.LLM_MODEL || "gpt-4o-mini";
+  const baseUrl = (process.env.LLM_API_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
+  const model = process.env.LLM_MODEL || "deepseek-v4-flash";
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     body: JSON.stringify({
