@@ -1,0 +1,10 @@
+.git
+.next
+.npm-cache
+.vercel
+.vercel-data
+node_modules
+out
+.env
+.env.*
+tsconfig.tsbuildinfo
