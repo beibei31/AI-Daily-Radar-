@@ -1,4 +1,7 @@
+import { loadEnvConfig } from "@next/env";
 import { runPipeline } from "@/src/pipeline/run";
+
+loadEnvConfig(process.cwd());
 
 runPipeline()
   .then((result) => {
@@ -8,4 +11,3 @@ runPipeline()
     console.error(error);
     process.exitCode = 1;
   });
-
