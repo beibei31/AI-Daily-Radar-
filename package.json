@@ -13,7 +13,8 @@
     "pipeline": "tsx scripts/run-pipeline.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
+    "@supabase/ssr": "^0.12.6",
+    "@supabase/supabase-js": "^2.109.0",
     "fast-xml-parser": "^5.11.1",
     "next": "^16.3.4",
     "react": "^19.0.0",
