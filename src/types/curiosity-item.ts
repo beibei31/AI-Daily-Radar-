@@ -35,5 +35,6 @@ export type CuriosityItem = {
   source: string;
   source_url: string;
   next_question?: string | null;
+  report_date?: string | null;
   created_at?: string | null;
 };

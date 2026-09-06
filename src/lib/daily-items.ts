@@ -1,4 +1,4 @@
-import { getShanghaiDayBounds } from "@/src/lib/date";
+import { getShanghaiDateKey } from "@/src/lib/date";
 import { logger } from "@/src/lib/logger";
 import {
   getSupabaseReadClient,
@@ -15,7 +15,7 @@ export type DailyReport = {
 };
 
 export async function getDailyReport(date = new Date()): Promise<DailyReport> {
-  const bounds = getShanghaiDayBounds(date);
+  const reportDate = getShanghaiDateKey(date);
 
   if (!hasSupabaseReadEnv()) {
     return {
@@ -30,8 +30,7 @@ export async function getDailyReport(date = new Date()): Promise<DailyReport> {
     const { data, error } = await supabase
       .from("daily_items")
       .select("*")
-      .gte("created_at", bounds.start.toISOString())
-      .lt("created_at", bounds.end.toISOString())
+      .eq("report_date", reportDate)
       .order("score", { ascending: false })
       .limit(40);
 

@@ -18,10 +18,12 @@ create table if not exists daily_items (
   product_takeaways text[] default '{}',
   inspiration text,
   image_url text,
+  report_date date not null default ((now() at time zone 'Asia/Shanghai')::date),
   published_at timestamptz,
   created_at timestamptz default now()
 );
 
+alter table daily_items add column if not exists report_date date;
 alter table daily_items add column if not exists tags text[] default '{}';
 alter table daily_items add column if not exists content_type text;
 alter table daily_items add column if not exists what_happened text;
@@ -34,7 +36,18 @@ alter table daily_items add column if not exists product_takeaways text[] defaul
 alter table daily_items add column if not exists inspiration text;
 alter table daily_items add column if not exists image_url text;
 
+update daily_items
+set report_date = (coalesce(published_at, created_at, now()) at time zone 'Asia/Shanghai')::date
+where report_date is null;
+
+alter table daily_items
+  alter column report_date set default ((now() at time zone 'Asia/Shanghai')::date);
+
+alter table daily_items
+  alter column report_date set not null;
+
 create index if not exists daily_items_created_at_idx on daily_items (created_at desc);
+create index if not exists daily_items_report_date_score_idx on daily_items (report_date desc, score desc);
 create index if not exists daily_items_category_score_idx on daily_items (category, score desc);
 create index if not exists daily_items_url_idx on daily_items (url);
 
@@ -51,11 +64,24 @@ create table if not exists curiosity_items (
   source text not null,
   source_url text not null,
   next_question text,
+  report_date date not null default ((now() at time zone 'Asia/Shanghai')::date),
   created_at timestamptz default now()
 );
 
+alter table curiosity_items add column if not exists report_date date;
 alter table curiosity_items add column if not exists question text;
 alter table curiosity_items add column if not exists next_question text;
 
+update curiosity_items
+set report_date = (created_at at time zone 'Asia/Shanghai')::date
+where report_date is null;
+
+alter table curiosity_items
+  alter column report_date set default ((now() at time zone 'Asia/Shanghai')::date);
+
+alter table curiosity_items
+  alter column report_date set not null;
+
 create index if not exists curiosity_items_created_at_idx on curiosity_items (created_at desc);
+create index if not exists curiosity_items_report_date_idx on curiosity_items (report_date desc, difficulty asc);
 create index if not exists curiosity_items_category_idx on curiosity_items (category);

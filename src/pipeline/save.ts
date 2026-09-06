@@ -1,10 +1,10 @@
 import { logger } from "@/src/lib/logger";
 import { getSupabaseWriteClient, hasSupabaseWriteEnv } from "@/src/lib/supabase";
-import { getShanghaiDayBounds } from "@/src/lib/date";
+import { getShanghaiDateKey } from "@/src/lib/date";
 import type { CuriosityItem } from "@/src/types/curiosity-item";
 import type { ScoredItem } from "@/src/pipeline/types";
 
-function toRow(item: ScoredItem) {
+function toRow(item: ScoredItem, reportDate: string) {
   const imageUrl =
     typeof item.metadata.image_url === "string" ? item.metadata.image_url : null;
 
@@ -19,6 +19,7 @@ function toRow(item: ScoredItem) {
     product_one_liner: item.product_one_liner ?? null,
     product_takeaways: item.product_takeaways ?? [],
     reason: item.reason,
+    report_date: reportDate,
     score: item.score,
     source: item.source,
     summary: item.summary,
@@ -36,9 +37,11 @@ export async function saveToSupabase(items: ScoredItem[]) {
     return { inserted: 0, skipped: 0 };
   }
 
+  const reportDate = getShanghaiDateKey();
+
   if (!hasSupabaseWriteEnv()) {
     logger.warn("Supabase write env missing; printing preview instead of inserting.", {
-      preview: items.slice(0, 5).map(toRow)
+      preview: items.slice(0, 5).map((item) => toRow(item, reportDate))
     });
     return { inserted: 0, skipped: items.length };
   }
@@ -51,7 +54,11 @@ export async function saveToSupabase(items: ScoredItem[]) {
   const existingUrls = new Set<string>();
 
   if (urls.length > 0) {
-    const { data, error } = await supabase.from("daily_items").select("url").in("url", urls);
+    const { data, error } = await supabase
+      .from("daily_items")
+      .select("url")
+      .eq("report_date", reportDate)
+      .in("url", urls);
 
     if (error) {
       throw error;
@@ -69,7 +76,7 @@ export async function saveToSupabase(items: ScoredItem[]) {
       const url = item.canonicalUrl || item.url;
       return !url || !existingUrls.has(url);
     })
-    .map(toRow);
+    .map((item) => toRow(item, reportDate));
 
   if (rows.length === 0) {
     return { inserted: 0, skipped: items.length };
@@ -84,7 +91,7 @@ export async function saveToSupabase(items: ScoredItem[]) {
   return { inserted: rows.length, skipped: items.length - rows.length };
 }
 
-function toCuriosityRow(item: CuriosityItem) {
+function toCuriosityRow(item: CuriosityItem, reportDate: string) {
   return {
     category: item.category,
     difficulty: item.difficulty,
@@ -94,6 +101,7 @@ function toCuriosityRow(item: CuriosityItem) {
     next_question: item.next_question ?? null,
     question: item.question ?? item.title,
     related_topics: item.related_topics,
+    report_date: reportDate,
     source: item.source,
     source_url: item.source_url,
     title: item.title
@@ -105,21 +113,21 @@ export async function saveCuriosityToSupabase(items: CuriosityItem[]) {
     return { inserted: 0, skipped: 0 };
   }
 
+  const reportDate = getShanghaiDateKey();
+
   if (!hasSupabaseWriteEnv()) {
     logger.warn("Supabase write env missing; printing curiosity preview instead of inserting.", {
-      preview: items.map(toCuriosityRow)
+      preview: items.map((item) => toCuriosityRow(item, reportDate))
     });
     return { inserted: 0, skipped: items.length };
   }
 
   const supabase = getSupabaseWriteClient();
-  const bounds = getShanghaiDayBounds();
   const titles = items.map((item) => item.title);
   const { data, error } = await supabase
     .from("curiosity_items")
     .select("title")
-    .gte("created_at", bounds.start.toISOString())
-    .lt("created_at", bounds.end.toISOString())
+    .eq("report_date", reportDate)
     .in("title", titles);
 
   if (error) {
@@ -129,7 +137,7 @@ export async function saveCuriosityToSupabase(items: CuriosityItem[]) {
   const existingTitles = new Set(data?.map((row) => row.title) ?? []);
   const rows = items
     .filter((item) => !existingTitles.has(item.title))
-    .map(toCuriosityRow);
+    .map((item) => toCuriosityRow(item, reportDate));
 
   if (rows.length === 0) {
     return { inserted: 0, skipped: items.length };

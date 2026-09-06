@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { DailyCard } from "@/src/components/DailyCard";
 import { ProductPatternCard } from "@/src/components/ProductPatternCard";
 import { curiosityCategoryLabels } from "@/src/lib/curiosity-data";
-import { getShanghaiDayBounds, formatShanghaiDate } from "@/src/lib/date";
+import { formatShanghaiDate, getShanghaiDateKey } from "@/src/lib/date";
 import type {
   CuriosityCategory,
   CuriosityItem
@@ -188,7 +188,7 @@ async function loadDailyItems(date: Date): Promise<DailyItem[] | null> {
     return null;
   }
 
-  const bounds = getShanghaiDayBounds(date);
+  const reportDate = getShanghaiDateKey(date);
   const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     auth: {
       persistSession: false
@@ -197,8 +197,7 @@ async function loadDailyItems(date: Date): Promise<DailyItem[] | null> {
   const { data, error } = await supabase
     .from("daily_items")
     .select("*")
-    .gte("created_at", bounds.start.toISOString())
-    .lt("created_at", bounds.end.toISOString())
+    .eq("report_date", reportDate)
     .order("score", { ascending: false })
     .limit(60);
 
@@ -217,7 +216,7 @@ async function loadCuriosityItems(date: Date): Promise<CuriosityItem[] | null> {
     return null;
   }
 
-  const bounds = getShanghaiDayBounds(date);
+  const reportDate = getShanghaiDateKey(date);
   const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     auth: {
       persistSession: false
@@ -226,8 +225,7 @@ async function loadCuriosityItems(date: Date): Promise<CuriosityItem[] | null> {
   const { data, error } = await supabase
     .from("curiosity_items")
     .select("*")
-    .gte("created_at", bounds.start.toISOString())
-    .lt("created_at", bounds.end.toISOString())
+    .eq("report_date", reportDate)
     .order("difficulty", { ascending: true })
     .limit(3);
 

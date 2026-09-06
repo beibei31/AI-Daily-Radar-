@@ -1,10 +1,17 @@
 export function getShanghaiDateKey(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     day: "2-digit",
     month: "2-digit",
     timeZone: "Asia/Shanghai",
     year: "numeric"
-  }).format(date);
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((current, part) => {
+      current[part.type] = part.value;
+      return current;
+    }, {});
+
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 export function getShanghaiDayBounds(date = new Date()) {

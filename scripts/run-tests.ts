@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pickCuriosityItemsForDate } from "@/src/lib/curiosity-data";
+import { getShanghaiDateKey } from "@/src/lib/date";
 import { deduplicate } from "@/src/pipeline/dedupe";
 import { heuristicDecision } from "@/src/pipeline/heuristic";
 import type { NormalizedItem } from "@/src/pipeline/types";
@@ -27,6 +28,13 @@ function testDedupeByCanonicalUrl() {
   ];
 
   assert.equal(deduplicate(items).length, 1);
+}
+
+function testShanghaiReportDateKey() {
+  assert.equal(
+    getShanghaiDateKey(new Date("2026-09-05T16:30:00.000Z")),
+    "2026-09-06"
+  );
 }
 
 function testCuriosityDailySelection() {
@@ -77,6 +85,7 @@ function testProductPatternFallback() {
 }
 
 testDedupeByCanonicalUrl();
+testShanghaiReportDateKey();
 testCuriosityDailySelection();
 testHeuristicDecisionIncludesV11Fields();
 testProductPatternFallback();

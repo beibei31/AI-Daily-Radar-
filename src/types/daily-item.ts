@@ -22,6 +22,7 @@ export type DailyItem = {
   source: string | null;
   category: Category;
   score: number | null;
+  report_date?: string | null;
   published_at: string | null;
   created_at?: string | null;
   tags?: string[] | null;
