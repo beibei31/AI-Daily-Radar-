@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pickCuriosityItemsForDate } from "@/src/lib/curiosity-data";
+import { getCuriosityTopicOptions } from "@/src/lib/curiosity-interactions";
 import { getShanghaiDateKey } from "@/src/lib/date";
 import { deduplicate } from "@/src/pipeline/dedupe";
 import { heuristicDecision } from "@/src/pipeline/heuristic";
@@ -50,6 +51,13 @@ function testCuriosityDailySelection() {
   });
 }
 
+function testCuriosityTopicOptionsAreUnique() {
+  assert.deepEqual(
+    getCuriosityTopicOptions(["磁偏角", "航海", "磁偏角", ""], "航海"),
+    ["磁偏角", "航海"]
+  );
+}
+
 function testHeuristicDecisionIncludesV11Fields() {
   const decision = heuristicDecision(
     item({
@@ -87,6 +95,7 @@ function testProductPatternFallback() {
 testDedupeByCanonicalUrl();
 testShanghaiReportDateKey();
 testCuriosityDailySelection();
+testCuriosityTopicOptionsAreUnique();
 testHeuristicDecisionIncludesV11Fields();
 testProductPatternFallback();
 

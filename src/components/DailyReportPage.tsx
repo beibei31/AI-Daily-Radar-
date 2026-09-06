@@ -3,6 +3,7 @@
 import * as React from "react";
 import { DailyCard } from "@/src/components/DailyCard";
 import { ProductPatternCard } from "@/src/components/ProductPatternCard";
+import { getCuriosityTopicOptions } from "@/src/lib/curiosity-interactions";
 import { curiosityCategoryLabels } from "@/src/lib/curiosity-data";
 import { formatShanghaiDate } from "@/src/lib/date";
 import type {
@@ -24,10 +25,18 @@ type DailyReportState = {
   items: DailyItem[];
 };
 
-type RevealState = {
-  curiosity: boolean;
-  surprise: boolean;
+type LearningCardKey = "curiosity" | "surprise";
+
+type CuriosityReaction = "remembered" | "surprising" | "more";
+
+type CardInteraction = {
+  reaction: CuriosityReaction | null;
+  revealed: boolean;
+  selectedTopic: string | null;
+  showFollowUp: boolean;
 };
+
+type InteractionState = Record<LearningCardKey, CardInteraction>;
 
 type DailyReportPageProps = {
   initialCuriosityItems: CuriosityItem[];
@@ -38,6 +47,22 @@ type DailyReportPageProps = {
 };
 
 const curiosityStorageKey = "ai-daily-radar-curiosity-interests";
+
+function createCardInteraction(): CardInteraction {
+  return {
+    reaction: null,
+    revealed: false,
+    selectedTopic: null,
+    showFollowUp: false
+  };
+}
+
+function createInteractionState(): InteractionState {
+  return {
+    curiosity: createCardInteraction(),
+    surprise: createCardInteraction()
+  };
+}
 
 function itemKey(item: DailyItem | CuriosityItem) {
   return "url" in item ? item.url || `${item.source}-${item.title}` : item.title;
@@ -198,23 +223,36 @@ function EmptyContent({ message }: { message: string }) {
 
 function CuriosityRevealCard({
   item,
+  interaction,
   marker,
   title,
   countLabel,
-  revealed,
-  onReveal,
+  onReaction,
+  onSelectTopic,
+  onToggleFollowUp,
+  onToggleReveal,
   onNext,
   nextLabel
 }: {
   item: CuriosityItem | null;
+  interaction: CardInteraction;
   marker: string;
   title: string;
   countLabel: string;
-  revealed: boolean;
-  onReveal(): void;
+  onReaction(reaction: CuriosityReaction): void;
+  onSelectTopic(topic: string): void;
+  onToggleFollowUp(): void;
+  onToggleReveal(): void;
   onNext(): void;
   nextLabel: string;
 }) {
+  const categoryLabel = item
+    ? curiosityCategoryLabels[item.category] ?? item.category
+    : "";
+  const topicOptions = item
+    ? getCuriosityTopicOptions(item.related_topics, categoryLabel)
+    : [];
+
   return (
     <section className="section curiosity-section">
       <div className="section-header">
@@ -228,17 +266,36 @@ function CuriosityRevealCard({
       {!item ? (
         <EmptyContent message="今天暂时没有 Curiosity 数据。运行 pipeline 后，这里会显示当天问题。" />
       ) : (
-      <article className="curiosity-card">
+      <article className={`curiosity-card ${interaction.revealed ? "is-revealed" : ""}`}>
         <div>
           <div className="curiosity-meta">
-            <span>{curiosityCategoryLabels[item.category]}</span>
+            <span>{categoryLabel}</span>
             <span>Difficulty {item.difficulty}/5</span>
           </div>
           <h3>{curiosityQuestion(item)}</h3>
           <p className="curiosity-hook">{item.hook}</p>
         </div>
 
-        {revealed ? (
+        {!interaction.revealed ? (
+          <div className="curiosity-guess">
+            <span>先猜一个关键词</span>
+            <div className="choice-row">
+              {topicOptions.map((topic) => (
+                <button
+                  aria-pressed={interaction.selectedTopic === topic}
+                  className={`choice-button ${
+                    interaction.selectedTopic === topic ? "is-active" : ""
+                  }`}
+                  key={topic}
+                  onClick={() => onSelectTopic(topic)}
+                  type="button"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
           <>
             <div className="curiosity-body">
               <div>
@@ -258,21 +315,56 @@ function CuriosityRevealCard({
             </div>
 
             {item.next_question ? (
-              <p className="next-question">想继续：{item.next_question}</p>
+              <div className="follow-up" hidden={!interaction.showFollowUp}>
+                <span>下一问</span>
+                <p>{item.next_question}</p>
+              </div>
             ) : null}
+
+            <div className="reaction-row" aria-label="学习反馈">
+              <button
+                aria-pressed={interaction.reaction === "remembered"}
+                className={interaction.reaction === "remembered" ? "is-active" : ""}
+                onClick={() => onReaction("remembered")}
+                type="button"
+              >
+                记住了
+              </button>
+              <button
+                aria-pressed={interaction.reaction === "surprising"}
+                className={interaction.reaction === "surprising" ? "is-active" : ""}
+                onClick={() => onReaction("surprising")}
+                type="button"
+              >
+                有点意外
+              </button>
+              <button
+                aria-pressed={interaction.reaction === "more"}
+                className={interaction.reaction === "more" ? "is-active" : ""}
+                onClick={() => onReaction("more")}
+                type="button"
+              >
+                多给我这类
+              </button>
+            </div>
           </>
-        ) : null}
+        )}
 
         <div className="card-footer">
           <div className="curiosity-actions">
-            <button className="primary-button" onClick={onReveal} type="button">
-              Reveal Answer
+            <button className="primary-button" onClick={onToggleReveal} type="button">
+              {interaction.revealed ? "收起答案" : "揭晓答案"}
             </button>
+            {interaction.revealed && item.next_question ? (
+              <button className="ghost-button" onClick={onToggleFollowUp} type="button">
+                {interaction.showFollowUp ? "收起追问" : "继续追问"}
+              </button>
+            ) : null}
             <button className="ghost-button" onClick={onNext} type="button">
               {nextLabel}
             </button>
           </div>
-          {revealed ? (
+          {interaction.revealed ? (
             <a className="link" href={item.source_url} rel="noreferrer" target="_blank">
               {item.source}
             </a>
@@ -303,10 +395,9 @@ export function DailyReportPage({
   initialDate,
   initialItems
 }: DailyReportPageProps) {
-  const [revealed, setRevealed] = React.useState<RevealState>({
-    curiosity: false,
-    surprise: false
-  });
+  const [interactions, setInteractions] = React.useState<InteractionState>(
+    createInteractionState
+  );
   const [report, setReport] = React.useState<DailyReportState>({
     curiosityIndex: 0,
     curiosityItems: initialCuriosityItems,
@@ -342,7 +433,10 @@ export function DailyReportPage({
     }
 
     recordCuriosityInterest(curiosityItem.category);
-    setRevealed((current) => ({ ...current, curiosity: false }));
+    setInteractions((current) => ({
+      ...current,
+      curiosity: createCardInteraction()
+    }));
     setReport((current) => ({
       ...current,
       curiosityIndex: pickCuriosityIndex(
@@ -358,7 +452,10 @@ export function DailyReportPage({
       return;
     }
 
-    setRevealed((current) => ({ ...current, surprise: false }));
+    setInteractions((current) => ({
+      ...current,
+      surprise: createCardInteraction()
+    }));
     setReport((current) => ({
       ...current,
       surpriseIndex: pickCuriosityIndex(
@@ -369,22 +466,65 @@ export function DailyReportPage({
     }));
   }
 
-  function revealCuriosity() {
-    if (!curiosityItem) {
-      return;
-    }
-
-    recordCuriosityInterest(curiosityItem.category);
-    setRevealed((current) => ({ ...current, curiosity: true }));
+  function selectTopic(card: LearningCardKey, topic: string) {
+    setInteractions((current) => ({
+      ...current,
+      [card]: {
+        ...current[card],
+        selectedTopic: topic
+      }
+    }));
   }
 
-  function revealSurprise() {
-    if (!surpriseItem) {
+  function toggleReveal(card: LearningCardKey, item: CuriosityItem | null) {
+    if (!item) {
       return;
     }
 
-    recordCuriosityInterest(surpriseItem.category);
-    setRevealed((current) => ({ ...current, surprise: true }));
+    if (!interactions[card].revealed) {
+      recordCuriosityInterest(item.category);
+    }
+
+    setInteractions((current) => ({
+      ...current,
+      [card]: {
+        ...current[card],
+        revealed: !current[card].revealed,
+        showFollowUp: current[card].revealed ? false : current[card].showFollowUp
+      }
+    }));
+  }
+
+  function toggleFollowUp(card: LearningCardKey) {
+    setInteractions((current) => ({
+      ...current,
+      [card]: {
+        ...current[card],
+        showFollowUp: !current[card].showFollowUp
+      }
+    }));
+  }
+
+  function reactToCard(
+    card: LearningCardKey,
+    item: CuriosityItem | null,
+    reaction: CuriosityReaction
+  ) {
+    if (!item) {
+      return;
+    }
+
+    if (reaction === "more") {
+      recordCuriosityInterest(item.category);
+    }
+
+    setInteractions((current) => ({
+      ...current,
+      [card]: {
+        ...current[card],
+        reaction
+      }
+    }));
   }
 
   const hasMissingData =
@@ -436,23 +576,29 @@ export function DailyReportPage({
 
       <CuriosityRevealCard
         countLabel="今日问题"
+        interaction={interactions.curiosity}
         item={curiosityItem}
         marker="curiosity"
         nextLabel="再学一个"
         onNext={handleLearnAnother}
-        onReveal={revealCuriosity}
-        revealed={revealed.curiosity}
+        onReaction={(reaction) => reactToCard("curiosity", curiosityItem, reaction)}
+        onSelectTopic={(topic) => selectTopic("curiosity", topic)}
+        onToggleFollowUp={() => toggleFollowUp("curiosity")}
+        onToggleReveal={() => toggleReveal("curiosity", curiosityItem)}
         title="🧠 Curiosity"
       />
 
       <CuriosityRevealCard
         countLabel="随机陌生领域"
+        interaction={interactions.surprise}
         item={surpriseItem}
         marker="surprise"
         nextLabel="换一个领域"
         onNext={handleSurprise}
-        onReveal={revealSurprise}
-        revealed={revealed.surprise}
+        onReaction={(reaction) => reactToCard("surprise", surpriseItem, reaction)}
+        onSelectTopic={(topic) => selectTopic("surprise", topic)}
+        onToggleFollowUp={() => toggleFollowUp("surprise")}
+        onToggleReveal={() => toggleReveal("surprise", surpriseItem)}
         title="🎲 Surprise Me"
       />
     </main>
