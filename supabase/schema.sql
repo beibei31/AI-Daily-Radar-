@@ -37,7 +37,7 @@ alter table daily_items add column if not exists inspiration text;
 alter table daily_items add column if not exists image_url text;
 
 update daily_items
-set report_date = (coalesce(published_at, created_at, now()) at time zone 'Asia/Shanghai')::date
+set report_date = (coalesce(created_at, now()) at time zone 'Asia/Shanghai')::date
 where report_date is null;
 
 alter table daily_items
