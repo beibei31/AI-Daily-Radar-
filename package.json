@@ -10,19 +10,23 @@
     "lint": "tsc --noEmit",
     "test": "tsx scripts/run-tests.ts && tsc --noEmit",
     "test:llm": "tsx scripts/run-llm-smoke.ts",
+    "test:ui": "node scripts/test-ui.mjs",
     "pipeline": "tsx scripts/run-pipeline.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.109.0",
     "fast-xml-parser": "^5.11.1",
+    "lucide-react": "^1.41.0",
     "next": "^16.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.28.2",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3"
   }

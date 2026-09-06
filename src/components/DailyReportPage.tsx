@@ -1,6 +1,26 @@
 "use client";
 
 import * as React from "react";
+import {
+  Activity,
+  ArrowUpRight,
+  Brain,
+  Check,
+  ChevronDown,
+  Code2,
+  FlaskConical,
+  Search,
+  Shuffle,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { HeadlineCarousel } from "@/src/components/HeadlineCarousel";
+import { RippleBackground } from "@/src/components/RippleBackground";
+import {
+  filterFeed,
+  type FeedFilter,
+  type FeedSort,
+} from "@/src/lib/feed-view";
 import { DailyCard } from "@/src/components/DailyCard";
 import { ProductPatternCard } from "@/src/components/ProductPatternCard";
 import { getCuriosityTopicOptions } from "@/src/lib/curiosity-interactions";
@@ -8,7 +28,7 @@ import { curiosityCategoryLabels } from "@/src/lib/curiosity-data";
 import { formatShanghaiDate } from "@/src/lib/date";
 import type {
   CuriosityCategory,
-  CuriosityItem
+  CuriosityItem,
 } from "@/src/types/curiosity-item";
 import type { DailyItem } from "@/src/types/daily-item";
 import { isProductPattern } from "@/src/types/product-pattern";
@@ -53,19 +73,21 @@ function createCardInteraction(): CardInteraction {
     reaction: null,
     revealed: false,
     selectedTopic: null,
-    showFollowUp: false
+    showFollowUp: false,
   };
 }
 
 function createInteractionState(): InteractionState {
   return {
     curiosity: createCardInteraction(),
-    surprise: createCardInteraction()
+    surprise: createCardInteraction(),
   };
 }
 
 function itemKey(item: DailyItem | CuriosityItem) {
-  return "url" in item ? item.url || `${item.source}-${item.title}` : item.title;
+  return "url" in item
+    ? item.url || `${item.source}-${item.title}`
+    : item.title;
 }
 
 function sortByScore(items: DailyItem[]) {
@@ -82,7 +104,7 @@ function getSectionItems(
   items: DailyItem[],
   categories: DailyItem["category"][],
   limit: number,
-  excludedKeys: Set<string>
+  excludedKeys: Set<string>,
 ) {
   return sortByScore(items)
     .filter((item) => categories.includes(item.category))
@@ -95,7 +117,7 @@ function Section({
   marker,
   countLabel,
   items,
-  compact = false
+  compact = false,
 }: {
   title: string;
   marker: string;
@@ -110,7 +132,9 @@ function Section({
           <span aria-hidden className={`marker ${marker}`} />
           <h2>{title}</h2>
         </div>
-        <span className="section-count">{countLabel ?? `${items.length} 条`}</span>
+        <span className="section-count">
+          {countLabel ?? `${items.length} 条`}
+        </span>
       </div>
       {items.length > 0 ? (
         <div className={items.length === 1 ? "grid two" : "grid"}>
@@ -133,18 +157,23 @@ function ProductPatternsSection({ items }: { items: DailyItem[] }) {
   const products = items.filter(isProductPattern);
 
   return (
-    <section className="section product-section">
+    <section id="products" className="section product-section">
       <div className="section-header">
         <div className="section-title">
           <span aria-hidden className="marker product" />
-          <h2>🧪 Product Patterns</h2>
+          <h2>
+            <FlaskConical size={22} /> Product Patterns <small>产品拆解</small>
+          </h2>
         </div>
         <span className="section-count">{products.length} 个产品</span>
       </div>
       {products.length > 0 ? (
         <div className="product-list">
           {products.map((item) => (
-            <ProductPatternCard key={`${itemKey(item)}-${item.score ?? 0}`} item={item} />
+            <ProductPatternCard
+              key={`${itemKey(item)}-${item.score ?? 0}`}
+              item={item}
+            />
           ))}
         </div>
       ) : (
@@ -157,7 +186,12 @@ function ProductPatternsSection({ items }: { items: DailyItem[] }) {
 function readCuriosityInterests(): Partial<Record<CuriosityCategory, number>> {
   try {
     const raw = window.localStorage.getItem(curiosityStorageKey);
-    return raw ? JSON.parse(raw) : {};
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([category, weight]) =>
+      Object.hasOwn(curiosityCategoryLabels, category) &&
+      typeof weight === "number" && Number.isFinite(weight) && weight >= 0
+    ));
   } catch {
     return {};
   }
@@ -176,28 +210,37 @@ function recordCuriosityInterest(category: CuriosityCategory) {
 function pickCuriosityIndex(
   items: CuriosityItem[],
   currentIndex: number,
-  mode: "balanced" | "surprise"
+  mode: "balanced" | "surprise",
 ) {
   if (items.length <= 1) {
     return 0;
   }
 
-  const candidates = items
+  let candidates = items
     .map((item, index) => ({ index, item }))
     .filter((entry) => entry.index !== currentIndex);
+  if (mode === "surprise") {
+    const unfamiliar = candidates.filter((entry) => entry.item.category !== items[currentIndex]?.category);
+    if (unfamiliar.length) candidates = unfamiliar;
+  }
   const interests = readCuriosityInterests();
 
   if (mode === "surprise" || Math.random() < 0.3) {
     const leastSeen = [...candidates].sort((a, b) => {
-      return (interests[a.item.category] ?? 0) - (interests[b.item.category] ?? 0);
+      return (
+        (interests[a.item.category] ?? 0) - (interests[b.item.category] ?? 0)
+      );
     });
-    const pool = leastSeen.slice(0, Math.max(1, Math.ceil(leastSeen.length / 2)));
+    const pool = leastSeen.slice(
+      0,
+      Math.max(1, Math.ceil(leastSeen.length / 2)),
+    );
     return pool[Math.floor(Math.random() * pool.length)].index;
   }
 
   const weighted = candidates.map((entry) => ({
     ...entry,
-    weight: Math.max(1, interests[entry.item.category] ?? 0)
+    weight: Math.max(1, interests[entry.item.category] ?? 0),
   }));
   const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
   let cursor = Math.random() * total;
@@ -232,7 +275,8 @@ function CuriosityRevealCard({
   onToggleFollowUp,
   onToggleReveal,
   onNext,
-  nextLabel
+  nextLabel,
+  canNext,
 }: {
   item: CuriosityItem | null;
   interaction: CardInteraction;
@@ -245,147 +289,190 @@ function CuriosityRevealCard({
   onToggleReveal(): void;
   onNext(): void;
   nextLabel: string;
+  canNext: boolean;
 }) {
   const categoryLabel = item
-    ? curiosityCategoryLabels[item.category] ?? item.category
+    ? (curiosityCategoryLabels[item.category] ?? item.category)
     : "";
   const topicOptions = item
     ? getCuriosityTopicOptions(item.related_topics, categoryLabel)
     : [];
 
   return (
-    <section className="section curiosity-section">
+    <section
+      id={marker === "surprise" ? "surprise" : "curiosity"}
+      className={`section curiosity-section ${marker === "surprise" ? "surprise-section" : ""}`}
+    >
       <div className="section-header">
         <div className="section-title">
           <span aria-hidden className={`marker ${marker}`} />
-          <h2>{title}</h2>
+          <h2>
+            {marker === "surprise" ? (
+              <Shuffle size={22} />
+            ) : (
+              <Brain size={22} />
+            )}
+            {title}
+          </h2>
         </div>
         <span className="section-count">{countLabel}</span>
       </div>
 
       {!item ? (
-        <EmptyContent message="今天暂时没有 Curiosity 数据。运行 pipeline 后，这里会显示当天问题。" />
+        <EmptyContent message="今天的知识问题尚未就绪，日报更新后再来探索。" />
       ) : (
-      <article className={`curiosity-card ${interaction.revealed ? "is-revealed" : ""}`}>
-        <div>
-          <div className="curiosity-meta">
-            <span>{categoryLabel}</span>
-            <span>Difficulty {item.difficulty}/5</span>
+        <article
+          className={`curiosity-card ${interaction.revealed ? "is-revealed" : ""}`}
+        >
+          <div>
+            <div className="curiosity-meta">
+              <span>{categoryLabel}</span>
+              <span>难度 {item.difficulty}/5</span>
+            </div>
+            <h3>{curiosityQuestion(item)}</h3>
+            {interaction.revealed && (
+              <p className="curiosity-hook">{item.hook}</p>
+            )}
           </div>
-          <h3>{curiosityQuestion(item)}</h3>
-          <p className="curiosity-hook">{item.hook}</p>
-        </div>
 
-        {!interaction.revealed ? (
-          <div className="curiosity-guess">
-            <span>先猜一个关键词</span>
-            <div className="choice-row">
-              {topicOptions.map((topic) => (
+          {!interaction.revealed ? (
+            <div className="curiosity-guess">
+              <span>先猜一个关键词</span>
+              <div className="choice-row">
+                {topicOptions.map((topic) => (
+                  <button
+                    aria-pressed={interaction.selectedTopic === topic}
+                    className={`choice-button ${
+                      interaction.selectedTopic === topic ? "is-active" : ""
+                    }`}
+                    key={topic}
+                    onClick={() => onSelectTopic(topic)}
+                    type="button"
+                  >
+                    {topic}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="curiosity-body">
+                <div>
+                  <h4>这是什么？</h4>
+                  <p>{item.explanation}</p>
+                </div>
+                <div>
+                  <h4>记住一句</h4>
+                  <p>{item.key_fact}</p>
+                </div>
+              </div>
+
+              <div className="topic-row">
+                {item.related_topics.map((topic) => (
+                  <span key={topic}>{topic}</span>
+                ))}
+              </div>
+
+              {item.next_question ? (
+                <div className="follow-up" hidden={!interaction.showFollowUp}>
+                  <span>下一问</span>
+                  <p>{item.next_question}</p>
+                </div>
+              ) : null}
+
+              <div className="reaction-row" aria-label="学习反馈">
                 <button
-                  aria-pressed={interaction.selectedTopic === topic}
-                  className={`choice-button ${
-                    interaction.selectedTopic === topic ? "is-active" : ""
-                  }`}
-                  key={topic}
-                  onClick={() => onSelectTopic(topic)}
+                  aria-pressed={interaction.reaction === "remembered"}
+                  className={
+                    interaction.reaction === "remembered" ? "is-active" : ""
+                  }
+                  onClick={() => onReaction("remembered")}
                   type="button"
                 >
-                  {topic}
+                  <Check size={15} /> 记住了
                 </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="curiosity-body">
-              <div>
-                <h4>这是什么？</h4>
-                <p>{item.explanation}</p>
+                <button
+                  aria-pressed={interaction.reaction === "surprising"}
+                  className={
+                    interaction.reaction === "surprising" ? "is-active" : ""
+                  }
+                  onClick={() => onReaction("surprising")}
+                  type="button"
+                >
+                  <Sparkles size={15} /> 有点意外
+                </button>
+                <button
+                  aria-pressed={interaction.reaction === "more"}
+                  className={interaction.reaction === "more" ? "is-active" : ""}
+                  onClick={() => onReaction("more")}
+                  type="button"
+                >
+                  多给我这类
+                </button>
               </div>
-              <div>
-                <h4>记住一句</h4>
-                <p>{item.key_fact}</p>
-              </div>
-            </div>
+            </>
+          )}
 
-            <div className="topic-row">
-              {item.related_topics.map((topic) => (
-                <span key={topic}>{topic}</span>
-              ))}
+          <div className="card-footer">
+            <div className="curiosity-actions">
+              <button
+                className="primary-button"
+                aria-expanded={interaction.revealed}
+                onClick={onToggleReveal}
+                type="button"
+              >
+                <Sparkles size={17} />
+                {interaction.revealed ? "收起答案" : "揭晓答案"}
+              </button>
+              {interaction.revealed && item.next_question ? (
+                <button
+                  className="ghost-button"
+                  onClick={onToggleFollowUp}
+                  type="button"
+                >
+                  {interaction.showFollowUp ? "收起追问" : "继续追问"}
+                </button>
+              ) : null}
+              <button
+                className="ghost-button"
+                onClick={onNext}
+                type="button"
+                disabled={!canNext}
+              >
+                <Shuffle size={16} /> {canNext ? nextLabel : "今日暂无更多问题"}
+              </button>
             </div>
-
-            {item.next_question ? (
-              <div className="follow-up" hidden={!interaction.showFollowUp}>
-                <span>下一问</span>
-                <p>{item.next_question}</p>
-              </div>
+            {interaction.revealed ? (
+              <a
+                className="link"
+                href={item.source_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {item.source}
+                <ArrowUpRight size={16} />
+              </a>
             ) : null}
-
-            <div className="reaction-row" aria-label="学习反馈">
-              <button
-                aria-pressed={interaction.reaction === "remembered"}
-                className={interaction.reaction === "remembered" ? "is-active" : ""}
-                onClick={() => onReaction("remembered")}
-                type="button"
-              >
-                记住了
-              </button>
-              <button
-                aria-pressed={interaction.reaction === "surprising"}
-                className={interaction.reaction === "surprising" ? "is-active" : ""}
-                onClick={() => onReaction("surprising")}
-                type="button"
-              >
-                有点意外
-              </button>
-              <button
-                aria-pressed={interaction.reaction === "more"}
-                className={interaction.reaction === "more" ? "is-active" : ""}
-                onClick={() => onReaction("more")}
-                type="button"
-              >
-                多给我这类
-              </button>
-            </div>
-          </>
-        )}
-
-        <div className="card-footer">
-          <div className="curiosity-actions">
-            <button className="primary-button" onClick={onToggleReveal} type="button">
-              {interaction.revealed ? "收起答案" : "揭晓答案"}
-            </button>
-            {interaction.revealed && item.next_question ? (
-              <button className="ghost-button" onClick={onToggleFollowUp} type="button">
-                {interaction.showFollowUp ? "收起追问" : "继续追问"}
-              </button>
-            ) : null}
-            <button className="ghost-button" onClick={onNext} type="button">
-              {nextLabel}
-            </button>
           </div>
-          {interaction.revealed ? (
-            <a className="link" href={item.source_url} rel="noreferrer" target="_blank">
-              {item.source}
-            </a>
-          ) : null}
-        </div>
-      </article>
+        </article>
       )}
     </section>
   );
 }
 
 function dataNoticeText(report: DailyReportState) {
-  if (report.dailyStatus === "missing_env" || report.curiosityStatus === "missing_env") {
-    return "服务端缺少 Supabase 环境变量。请检查 .env.local 或 Vercel / GitHub Secrets。";
+  if (
+    report.dailyStatus === "missing_env" ||
+    report.curiosityStatus === "missing_env"
+  ) {
+    return "日报数据连接尚未配置完成。";
   }
 
   if (report.dailyStatus === "error" || report.curiosityStatus === "error") {
-    return "读取 Supabase 时出错。请检查表结构、RLS 权限，或终端里的 Next 日志。";
+    return "部分日报暂时读取失败，请稍后刷新重试。";
   }
 
-  return "当前未读取到 Supabase 当日完整数据。请确认已执行 report_date 迁移，并重新运行 npm run pipeline。";
+  return "今天的日报尚未全部就绪。已更新的内容会照常展示。";
 }
 
 export function DailyReportPage({
@@ -393,10 +480,14 @@ export function DailyReportPage({
   initialCuriosityStatus,
   initialDailyStatus,
   initialDate,
-  initialItems
+  initialItems,
 }: DailyReportPageProps) {
+  const [query, setQuery] = React.useState("");
+  const [filter, setFilter] = React.useState<FeedFilter>("all");
+  const [sort, setSort] = React.useState<FeedSort>("score");
+  const [surpriseDrawn, setSurpriseDrawn] = React.useState(false);
   const [interactions, setInteractions] = React.useState<InteractionState>(
-    createInteractionState
+    createInteractionState,
   );
   const [report, setReport] = React.useState<DailyReportState>({
     curiosityIndex: 0,
@@ -405,27 +496,29 @@ export function DailyReportPage({
     dailyStatus: initialDailyStatus,
     date: new Date(initialDate),
     items: initialItems,
-    surpriseIndex: initialCuriosityItems.length > 1 ? 1 : 0
+    surpriseIndex: initialCuriosityItems.length > 1 ? 1 : 0,
   });
 
   const topItems = getTopItems(report.items);
-  const topKeys = new Set(topItems.map(itemKey));
   const techItems = getSectionItems(
     report.items,
     ["ai_news", "tool", "try_today"],
-    8,
-    topKeys
+    40,
+    new Set(),
   );
-  const productItems = getSectionItems(report.items, ["product"], 2, topKeys);
+  const productItems = getSectionItems(report.items, ["product"], 2, new Set());
   const opportunityItems = getSectionItems(
     report.items,
     ["hackathon"],
     3,
-    topKeys
+    new Set(),
   );
-  const curiosityItem =
-    report.curiosityItems[report.curiosityIndex] ?? null;
+  const curiosityItem = report.curiosityItems[report.curiosityIndex] ?? null;
   const surpriseItem = report.curiosityItems[report.surpriseIndex] ?? null;
+  const filteredItems = filterFeed(techItems, query, filter, sort);
+  const sources = new Set(
+    report.items.map((item) => item.source).filter(Boolean),
+  ).size;
 
   function handleLearnAnother() {
     if (!curiosityItem) {
@@ -435,15 +528,15 @@ export function DailyReportPage({
     recordCuriosityInterest(curiosityItem.category);
     setInteractions((current) => ({
       ...current,
-      curiosity: createCardInteraction()
+      curiosity: createCardInteraction(),
     }));
     setReport((current) => ({
       ...current,
       curiosityIndex: pickCuriosityIndex(
         current.curiosityItems,
         current.curiosityIndex,
-        "balanced"
-      )
+        "balanced",
+      ),
     }));
   }
 
@@ -454,15 +547,15 @@ export function DailyReportPage({
 
     setInteractions((current) => ({
       ...current,
-      surprise: createCardInteraction()
+      surprise: createCardInteraction(),
     }));
     setReport((current) => ({
       ...current,
       surpriseIndex: pickCuriosityIndex(
         current.curiosityItems,
         current.surpriseIndex,
-        "surprise"
-      )
+        "surprise",
+      ),
     }));
   }
 
@@ -471,8 +564,8 @@ export function DailyReportPage({
       ...current,
       [card]: {
         ...current[card],
-        selectedTopic: topic
-      }
+        selectedTopic: topic,
+      },
     }));
   }
 
@@ -490,8 +583,10 @@ export function DailyReportPage({
       [card]: {
         ...current[card],
         revealed: !current[card].revealed,
-        showFollowUp: current[card].revealed ? false : current[card].showFollowUp
-      }
+        showFollowUp: current[card].revealed
+          ? false
+          : current[card].showFollowUp,
+      },
     }));
   }
 
@@ -500,15 +595,15 @@ export function DailyReportPage({
       ...current,
       [card]: {
         ...current[card],
-        showFollowUp: !current[card].showFollowUp
-      }
+        showFollowUp: !current[card].showFollowUp,
+      },
     }));
   }
 
   function reactToCard(
     card: LearningCardKey,
     item: CuriosityItem | null,
-    reaction: CuriosityReaction
+    reaction: CuriosityReaction,
   ) {
     if (!item) {
       return;
@@ -522,85 +617,247 @@ export function DailyReportPage({
       ...current,
       [card]: {
         ...current[card],
-        reaction
-      }
+        reaction,
+      },
     }));
   }
 
   const hasMissingData =
-    (report.dailyStatus !== "ready" || report.curiosityStatus !== "ready");
+    report.dailyStatus !== "ready" || report.curiosityStatus !== "ready";
 
   return (
-    <main className="page">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">AI Daily Radar</p>
-          <h1>Good Morning</h1>
-          <p className="subtitle">每天帮你筛选、解释、启发，也发现一点新世界。</p>
-        </div>
-        <div className="date-pill">
-          {formatShanghaiDate(report.date)}
+    <>
+      <RippleBackground />
+      <a className="skip-link" href="#radar">
+        跳到今日资讯
+      </a>
+      <header className="site-header">
+        <div className="header-inner">
+          <a className="brand" href="#today" aria-label="PulseAI 首页">
+            <img src="/pulse-emblem.png" width="36" height="36" alt="" />
+            <span>
+              Pulse<span className="brand-ai">AI</span>
+            </span>
+          </a>
+          <nav aria-label="页面导航">
+            <a href="#radar">
+              每日热榜 <small>Daily Feed</small>
+            </a>
+            <a href="#products">
+              产品拆解 <small>Products</small>
+            </a>
+            <a href="#opportunities">
+              开发者机会 <small>Opportunities</small>
+            </a>
+            <a href="#explore">
+              未知探索 <small>Explore</small>
+            </a>
+          </nav>
+          <a
+            className="icon-button header-search"
+            href="#feed-search"
+            title="搜索今日资讯"
+            aria-label="搜索今日资讯"
+          >
+            <Search size={20} />
+          </a>
         </div>
       </header>
-
-      {hasMissingData ? (
-        <div className="notice">
-          <span>{dataNoticeText(report)}</span>
+      <main className="page">
+        <div className="pulse-strip">
+          <span className="live-label">
+            <Activity size={15} /> DAILY PULSE
+          </span>
+          <span>
+            今日精选 <strong>{report.items.length}</strong> 条
+          </span>
+          <span>
+            信息来源 <strong>{sources}</strong> 个
+          </span>
+          <time dateTime={initialDate}>{formatShanghaiDate(report.date)}</time>
         </div>
-      ) : null}
 
-      <Section
-        countLabel="今天最值得知道的 3 条"
-        items={topItems}
-        marker="hot"
-        title="🔥 Today"
-      />
+        {hasMissingData ? (
+          <div className="notice">
+            <span>{dataNoticeText(report)}</span>
+          </div>
+        ) : null}
 
-      <Section
-        compact
-        countLabel={`${techItems.length} 条`}
-        items={techItems}
-        marker=""
-        title="🤖 Tech Radar"
-      />
+        <HeadlineCarousel items={topItems} />
 
-      <ProductPatternsSection items={productItems} />
+        <section id="radar" className="section radar-section">
+          <div className="section-header">
+            <div className="section-title">
+              <h2>
+                <Code2 size={22} /> Tech Radar <small>前沿信号</small>
+              </h2>
+            </div>
+            <span className="section-count">{filteredItems.length} 条精选</span>
+          </div>
+          <div className="feed-toolbar">
+            <div className="filter-tabs" role="group" aria-label="资讯分类">
+              {(
+                [
+                  ["all", "全部洞察"],
+                  ["agent", "Agent / MCP"],
+                  ["coding", "AI Coding"],
+                  ["tool", "开源与工具"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="feed-controls">
+              <label className="search-field">
+                <Search size={17} />
+                <input
+                  id="feed-search"
+                  aria-label="搜索今日资讯"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索标题、来源、标签"
+                />
+                {query && (
+                  <button
+                    className="icon-button"
+                    title="清除搜索"
+                    aria-label="清除搜索"
+                    onClick={() => setQuery("")}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </label>
+              <label className="sort-field">
+                <select
+                  aria-label="资讯排序"
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as FeedSort)}
+                >
+                  <option value="score">推荐优先</option>
+                  <option value="newest">最新发布</option>
+                </select>
+                <ChevronDown size={14} />
+              </label>
+            </div>
+          </div>
+          {filteredItems.length ? (
+            <div className="grid">
+              {filteredItems.map((item) => (
+                <DailyCard key={itemKey(item)} item={item} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty">
+              {techItems.length
+                ? "没有匹配的资讯，试试其他关键词或分类。"
+                : "今天的技术资讯尚未就绪。"}
+            </div>
+          )}
+        </section>
 
-      <Section
-        compact
-        countLabel={`${opportunityItems.length} 条`}
-        items={opportunityItems}
-        marker="hackathon"
-        title="🏆 Opportunities"
-      />
+        <ProductPatternsSection items={productItems} />
 
-      <CuriosityRevealCard
-        countLabel="今日问题"
-        interaction={interactions.curiosity}
-        item={curiosityItem}
-        marker="curiosity"
-        nextLabel="再学一个"
-        onNext={handleLearnAnother}
-        onReaction={(reaction) => reactToCard("curiosity", curiosityItem, reaction)}
-        onSelectTopic={(topic) => selectTopic("curiosity", topic)}
-        onToggleFollowUp={() => toggleFollowUp("curiosity")}
-        onToggleReveal={() => toggleReveal("curiosity", curiosityItem)}
-        title="🧠 Curiosity"
-      />
+        <div id="opportunities">
+          <Section
+            compact
+            countLabel={`${opportunityItems.length} 条`}
+            items={opportunityItems}
+            marker="hackathon"
+            title="Opportunities · 开发者机会"
+          />
+        </div>
 
-      <CuriosityRevealCard
-        countLabel="随机陌生领域"
-        interaction={interactions.surprise}
-        item={surpriseItem}
-        marker="surprise"
-        nextLabel="换一个领域"
-        onNext={handleSurprise}
-        onReaction={(reaction) => reactToCard("surprise", surpriseItem, reaction)}
-        onSelectTopic={(topic) => selectTopic("surprise", topic)}
-        onToggleFollowUp={() => toggleFollowUp("surprise")}
-        onToggleReveal={() => toggleReveal("surprise", surpriseItem)}
-        title="🎲 Surprise Me"
-      />
-    </main>
+        <div id="explore" className="explore-intro">
+          <span className="eyebrow">
+            <Sparkles size={16} /> A LITTLE OUTSIDE YOUR ORBIT
+          </span>
+          <h2>每天，发现一点新世界。</h2>
+          <p>从今天的一个问题，到意料之外的一个领域。</p>
+        </div>
+
+        <CuriosityRevealCard
+          countLabel="今日问题"
+          interaction={interactions.curiosity}
+          item={curiosityItem}
+          marker="curiosity"
+          nextLabel="再学一个"
+          canNext={report.curiosityItems.length > 1}
+          onNext={handleLearnAnother}
+          onReaction={(reaction) =>
+            reactToCard("curiosity", curiosityItem, reaction)
+          }
+          onSelectTopic={(topic) => selectTopic("curiosity", topic)}
+          onToggleFollowUp={() => toggleFollowUp("curiosity")}
+          onToggleReveal={() => toggleReveal("curiosity", curiosityItem)}
+          title="Curiosity · 今日一问"
+        />
+
+        <div className="surprise-draw">
+          <span className="eyebrow">
+            <Shuffle size={16} /> SURPRISE ME / 随机探索
+          </span>
+          <h2>下一站，会遇见什么？</h2>
+          <p>天文、气味、艺术、日常科学……让好奇心决定方向。</p>
+          <button
+            type="button"
+            className="primary-button draw-button"
+            disabled={
+              !surpriseItem ||
+              (surpriseDrawn && report.curiosityItems.length <= 1)
+            }
+            onClick={() => {
+              handleSurprise();
+              setSurpriseDrawn(true);
+            }}
+          >
+            <Sparkles size={22} />
+            {!surpriseItem
+              ? "等待今日知识更新"
+              : surpriseDrawn
+                ? "换一换，再探索"
+                : "抽取一个未知问题"}
+          </button>
+          {surpriseDrawn && report.curiosityItems.length <= 1 && (
+            <p className="muted">
+              今天只有一个问题，更多内容将在下次日报更新。
+            </p>
+          )}
+        </div>
+        {surpriseDrawn && (
+          <CuriosityRevealCard
+            countLabel="随机陌生领域"
+            interaction={interactions.surprise}
+            item={surpriseItem}
+            marker="surprise"
+            nextLabel="换一个领域"
+            canNext={report.curiosityItems.length > 1}
+            onNext={handleSurprise}
+            onReaction={(reaction) =>
+              reactToCard("surprise", surpriseItem, reaction)
+            }
+            onSelectTopic={(topic) => selectTopic("surprise", topic)}
+            onToggleFollowUp={() => toggleFollowUp("surprise")}
+            onToggleReveal={() => toggleReveal("surprise", surpriseItem)}
+            title="你的探索发现"
+          />
+        )}
+        <footer className="site-footer">
+          <a className="brand" href="#today">
+            <img src="/pulse-emblem.png" width="26" height="26" alt="" />
+            PulseAI
+          </a>
+          <span>AI Daily Radar · 保持好奇，独立思考。</span>
+          <a href="#today">回到顶部 ↑</a>
+        </footer>
+      </main>
+    </>
   );
 }

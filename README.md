@@ -155,7 +155,34 @@ GitHub Actions is configured in `.github/workflows/daily-radar.yml`.
 3. Set the same environment variables in Vercel.
 4. Deploy on the free `*.vercel.app` domain.
 
-The frontend is a static Next.js export and responsive, so the same deployment works on desktop and mobile. GitHub Actions runs the data pipeline independently and writes to Supabase.
+The homepage is dynamically server-rendered by Next.js and reads the current Shanghai report date from Supabase. It is not a static export. GitHub Actions runs the data pipeline independently and writes to Supabase.
+
+## PulseAI Interface
+
+The interface follows the supplied Stitch PulseAI design: dark glass surfaces, cyan/violet/green accents, a three-item headline carousel, searchable Tech Radar, product breakdowns, opportunities, and question-first learning.
+
+- Headlines support previous/next, pagination, touch swipes and an eight-second autoplay countdown. Autoplay pauses on hover, keyboard focus, hidden tabs and reduced-motion preferences.
+- Tech Radar filters and searches today's loaded items locally. "展开解读" reveals the full summary, relevance and action without leaving the page.
+- Curiosity hides both the answer and the hint until revealed. Surprise Me draws from the actual daily knowledge pool and prefers a different category when available. It does not generate new knowledge on click; a one-item pool disables further draws.
+- The WebGL backdrop renders short-lived pointer ripples, pauses when idle, and is disabled for reduced motion. Browsers without WebGL retain the full usable page.
+- Article images are shown only when data includes an HTTPS image URL; missing or failed images do not become invented product screenshots. The local brand emblem comes from the user-supplied Stitch export.
+- Counts and scores come from the loaded report. No sample news, fake community reactions, account system or benchmark claims were added.
+
+Browser tests use an isolated test fixture, never the database or local API keys:
+
+```bash
+npx playwright install chromium
+npm run test:ui
+```
+
+To use an existing Chrome installation in PowerShell:
+
+```powershell
+$env:UI_BROWSER_CHANNEL = 'chrome'
+npm run test:ui
+```
+
+Screenshots are generated in the git-ignored `artifacts/ui/` directory. Test fixtures live in `tests/` and are not imported by application routes. `npm run test` runs unit tests and type checks; `npm run build` verifies the production build.
 
 ## V1 Scope
 

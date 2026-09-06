@@ -4,6 +4,7 @@ node_modules
 dist
 out
 coverage
+artifacts/
 .env
 .env.local
 .env*.local
