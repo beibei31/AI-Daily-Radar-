@@ -32,6 +32,11 @@ import type {
 } from "@/src/types/curiosity-item";
 import type { DailyItem } from "@/src/types/daily-item";
 import { isProductPattern } from "@/src/types/product-pattern";
+import {
+  nextExploration,
+  questionKey,
+  uniqueQuestions,
+} from "@/src/lib/exploration";
 
 type DataStatus = "ready" | "empty" | "missing_env" | "error";
 
@@ -59,6 +64,7 @@ type CardInteraction = {
 type InteractionState = Record<LearningCardKey, CardInteraction>;
 
 type DailyReportPageProps = {
+  initialExplorationItems?: CuriosityItem[];
   initialCuriosityItems: CuriosityItem[];
   initialCuriosityStatus: DataStatus;
   initialDailyStatus: DataStatus;
@@ -187,11 +193,17 @@ function readCuriosityInterests(): Partial<Record<CuriosityCategory, number>> {
   try {
     const raw = window.localStorage.getItem(curiosityStorageKey);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return Object.fromEntries(Object.entries(parsed).filter(([category, weight]) =>
-      Object.hasOwn(curiosityCategoryLabels, category) &&
-      typeof weight === "number" && Number.isFinite(weight) && weight >= 0
-    ));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([category, weight]) =>
+          Object.hasOwn(curiosityCategoryLabels, category) &&
+          typeof weight === "number" &&
+          Number.isFinite(weight) &&
+          weight >= 0,
+      ),
+    );
   } catch {
     return {};
   }
@@ -220,7 +232,9 @@ function pickCuriosityIndex(
     .map((item, index) => ({ index, item }))
     .filter((entry) => entry.index !== currentIndex);
   if (mode === "surprise") {
-    const unfamiliar = candidates.filter((entry) => entry.item.category !== items[currentIndex]?.category);
+    const unfamiliar = candidates.filter(
+      (entry) => entry.item.category !== items[currentIndex]?.category,
+    );
     if (unfamiliar.length) candidates = unfamiliar;
   }
   const interests = readCuriosityInterests();
@@ -476,6 +490,7 @@ function dataNoticeText(report: DailyReportState) {
 }
 
 export function DailyReportPage({
+  initialExplorationItems,
   initialCuriosityItems,
   initialCuriosityStatus,
   initialDailyStatus,
@@ -486,6 +501,26 @@ export function DailyReportPage({
   const [filter, setFilter] = React.useState<FeedFilter>("all");
   const [sort, setSort] = React.useState<FeedSort>("score");
   const [surpriseDrawn, setSurpriseDrawn] = React.useState(false);
+  const explorationItems = React.useMemo(
+    () => uniqueQuestions(initialExplorationItems ?? initialCuriosityItems),
+    [initialExplorationItems, initialCuriosityItems],
+  );
+  const [seenExploration, setSeenExploration] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    try {
+      const saved: unknown = JSON.parse(
+        localStorage.getItem("pulseai-exploration-seen") || "[]",
+      );
+      if (Array.isArray(saved))
+        setSeenExploration(
+          saved
+            .filter((value): value is string => typeof value === "string")
+            .slice(-600),
+        );
+    } catch {
+      /* Browsing remains available without local storage. */
+    }
+  }, []);
   const [interactions, setInteractions] = React.useState<InteractionState>(
     createInteractionState,
   );
@@ -514,7 +549,10 @@ export function DailyReportPage({
     new Set(),
   );
   const curiosityItem = report.curiosityItems[report.curiosityIndex] ?? null;
-  const surpriseItem = report.curiosityItems[report.surpriseIndex] ?? null;
+  const surpriseItem = explorationItems[report.surpriseIndex] ?? null;
+  const unreadCount = explorationItems.filter(
+    (item) => !seenExploration.includes(questionKey(item)),
+  ).length;
   const filteredItems = filterFeed(techItems, query, filter, sort);
   const sources = new Set(
     report.items.map((item) => item.source).filter(Boolean),
@@ -541,8 +579,18 @@ export function DailyReportPage({
   }
 
   function handleSurprise() {
-    if (!surpriseItem) {
-      return;
+    const next = nextExploration(
+      explorationItems,
+      seenExploration,
+      surpriseDrawn ? surpriseItem?.category : curiosityItem?.category,
+    );
+    if (!next) return;
+    const seen = [...seenExploration, questionKey(next)].slice(-600);
+    setSeenExploration(seen);
+    try {
+      localStorage.setItem("pulseai-exploration-seen", JSON.stringify(seen));
+    } catch {
+      /* Optional persistence. */
     }
 
     setInteractions((current) => ({
@@ -551,11 +599,7 @@ export function DailyReportPage({
     }));
     setReport((current) => ({
       ...current,
-      surpriseIndex: pickCuriosityIndex(
-        current.curiosityItems,
-        current.surpriseIndex,
-        "surprise",
-      ),
+      surpriseIndex: explorationItems.indexOf(next),
     }));
   }
 
@@ -800,45 +844,64 @@ export function DailyReportPage({
           title="Curiosity · 今日一问"
         />
 
-        <div className="surprise-draw">
+        <div className="surprise-draw relative py-12 text-center">
           <span className="eyebrow">
             <Shuffle size={16} /> SURPRISE ME / 随机探索
           </span>
           <h2>下一站，会遇见什么？</h2>
           <p>天文、气味、艺术、日常科学……让好奇心决定方向。</p>
+          <p className="exploration-count">
+            知识池 {explorationItems.length} 题 · 还有 {unreadCount} 题未探索
+          </p>
           <button
             type="button"
             className="primary-button draw-button"
-            disabled={
-              !surpriseItem ||
-              (surpriseDrawn && report.curiosityItems.length <= 1)
-            }
+            disabled={unreadCount === 0}
             onClick={() => {
               handleSurprise();
               setSurpriseDrawn(true);
             }}
           >
             <Sparkles size={22} />
-            {!surpriseItem
+            {!explorationItems.length
               ? "等待今日知识更新"
-              : surpriseDrawn
-                ? "换一换，再探索"
-                : "抽取一个未知问题"}
+              : unreadCount === 0
+                ? "本轮已全部探索"
+                : surpriseDrawn
+                  ? "换一换，再探索"
+                  : "抽取一个未知问题"}
           </button>
-          {surpriseDrawn && report.curiosityItems.length <= 1 && (
+          {explorationItems.length > 0 && unreadCount === 0 && (
             <p className="muted">
-              今天只有一个问题，更多内容将在下次日报更新。
+              新问题会随日报加入。
+              <button
+                className="text-link"
+                onClick={() => {
+                  setSeenExploration([]);
+                  try {
+                    localStorage.removeItem("pulseai-exploration-seen");
+                  } catch {
+                    /* Optional persistence. */
+                  }
+                }}
+              >
+                重新探索已有知识
+              </button>
             </p>
           )}
         </div>
         {surpriseDrawn && (
           <CuriosityRevealCard
-            countLabel="随机陌生领域"
+            countLabel={
+              surpriseItem?.report_date
+                ? `收录于 ${surpriseItem.report_date}`
+                : "随机陌生领域"
+            }
             interaction={interactions.surprise}
             item={surpriseItem}
             marker="surprise"
             nextLabel="换一个领域"
-            canNext={report.curiosityItems.length > 1}
+            canNext={unreadCount > 0}
             onNext={handleSurprise}
             onReaction={(reaction) =>
               reactToCard("surprise", surpriseItem, reaction)

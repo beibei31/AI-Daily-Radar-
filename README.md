@@ -137,7 +137,11 @@ Chinese community sources are second-tier discovery sources. They are keyword-fi
 EXTRA_TECH_RSS_SOURCES="稀土掘金|https://example.com/juejin-feed;CSDN|https://example.com/csdn-feed"
 ```
 
-Curiosity content is generated from a curated, source-backed concept pool by default. This avoids pseudo-science and keeps daily runs free. The homepage stores Curiosity category interest counts in `localStorage` and selects roughly 70% from known interests and 30% from less-seen categories when the user clicks "再学一个"; "Surprise Me" intentionally explores unfamiliar categories and reveals answers only after the user opens them.
+Curiosity generation reads new NASA, ScienceDaily and Smithsonian RSS material and uses one LLM batch (up to 6,000 output tokens) to produce up to 12 sourced questions per run. Source IDs are validated and source links are assigned from fetched material, never invented by the model. Known source URLs/questions are excluded using the archive. Failed or insufficient source material produces no new questions; the pipeline no longer rotates the built-in catalog as a production fallback. The catalog remains only for legacy tests.
+
+The daily learning section displays up to three current-day questions. Surprise Me independently reads the latest 300 archived rows, deduplicates questions, prefers other categories and tracks seen questions in local storage. It stops when the pool is exhausted, with an explicit restart control. The archive grows after each successful pipeline run; removing the three-question display cap does not manufacture new database rows.
+
+To populate only the exploration archive without reprocessing news, run `npm run curiosity:refresh`. This uses the normal local application environment and makes one LLM batch request, with up to three retries for empty responses. No per-click LLM endpoint or public paid-generation API is exposed.
 
 ## Daily Schedule
 
@@ -163,8 +167,9 @@ The interface follows the supplied Stitch PulseAI design: dark glass surfaces, c
 
 - Headlines support previous/next, pagination, touch swipes and an eight-second autoplay countdown. Autoplay pauses on hover, keyboard focus, hidden tabs and reduced-motion preferences.
 - Tech Radar filters and searches today's loaded items locally. "展开解读" reveals the full summary, relevance and action without leaving the page.
-- Curiosity hides both the answer and the hint until revealed. Surprise Me draws from the actual daily knowledge pool and prefers a different category when available. It does not generate new knowledge on click; a one-item pool disables further draws.
-- The WebGL backdrop renders short-lived pointer ripples, pauses when idle, and is disabled for reduced motion. Browsers without WebGL retain the full usable page.
+- Curiosity hides both the answer and the hint until revealed. Surprise Me draws from the deduplicated historical archive; viewed questions do not repeat until explicitly restarted.
+- The native WebGL backdrop adapts the supplied Stitch wave shader, with stronger dual-frequency mouse ripples and click expansion. It animates at a capped 30 FPS, pauses in hidden tabs, and is disabled for reduced motion. Shader inputs are clamped to prevent undefined fractional powers. The canvas remains below the content at z-index 0, with content at z-index 10.
+- Tailwind is compiled locally through PostCSS; Plus Jakarta Sans and Inter are bundled locally without a Google Fonts runtime dependency.
 - Article images are shown only when data includes an HTTPS image URL; missing or failed images do not become invented product screenshots. The local brand emblem comes from the user-supplied Stitch export.
 - Counts and scores come from the loaded report. No sample news, fake community reactions, account system or benchmark claims were added.
 

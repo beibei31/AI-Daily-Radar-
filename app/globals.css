@@ -1,7 +1,9 @@
+@import "tailwindcss";
+
 :root {
   color-scheme: dark;
-  --bg: #090d16;
-  --surface: rgba(29, 32, 42, 0.76);
+  --bg: #0a0e17;
+  --surface: rgba(24, 27, 37, 0.6);
   --surface-soft: #252934;
   --text: #e5e7f1;
   --muted: #a1adb5;
@@ -24,7 +26,7 @@ body {
   margin: 0;
   color: var(--text);
   background: var(--bg);
-  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: Inter, "Microsoft YaHei", sans-serif;
   font-size: 15px;
   line-height: 1.6;
 }
@@ -81,6 +83,17 @@ h4,
 p {
   margin: 0;
 }
+h1,
+h2,
+h3,
+.brand {
+  font-family: "Plus Jakarta Sans", Inter, "Microsoft YaHei", sans-serif;
+}
+.exploration-count {
+  margin-top: 12px;
+  color: var(--green) !important;
+  font-size: 12px !important;
+}
 svg {
   flex-shrink: 0;
 }
@@ -106,6 +119,7 @@ svg {
 }
 .page {
   position: relative;
+  z-index: 10;
   width: min(1400px, calc(100% - 96px));
   margin: auto;
 }
@@ -160,9 +174,10 @@ svg {
   font-weight: 400;
 }
 .site-header nav a:first-child {
-  color: var(--cyan);
+  color: #00363a;
   border-color: var(--cyan);
-  background: rgba(0, 240, 255, 0.06);
+  background: #00f0ff;
+  box-shadow: 0 0 24px #00f0ff40;
 }
 .site-header nav a:hover {
   color: var(--cyan);
@@ -218,8 +233,11 @@ svg {
   border: 1px solid var(--border);
   border-radius: 28px;
   overflow: hidden;
-  background: rgba(27, 31, 41, 0.68);
-  backdrop-filter: blur(24px);
+  background: rgba(24, 27, 37, 0.6);
+  backdrop-filter: blur(32px);
+  box-shadow:
+    inset 0 1px 0 #ffffff12,
+    0 20px 55px #00000030;
 }
 .headline-top,
 .slide-controls {
@@ -590,8 +608,10 @@ svg {
 }
 .card:hover {
   transform: translateY(-4px);
-  border-color: rgba(0, 240, 255, 0.3);
-  box-shadow: 0 12px 26px #0003;
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow:
+    0 12px 26px #0005,
+    0 0 26px #00f0ff16;
 }
 .news-meta {
   display: flex;

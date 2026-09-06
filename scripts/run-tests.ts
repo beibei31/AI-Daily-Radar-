@@ -1,4 +1,11 @@
 import assert from "node:assert/strict";
+import {
+  nextExploration,
+  questionKey,
+  uniqueQuestions,
+} from "@/src/lib/exploration";
+import { validateCuriosityOutput } from "@/src/pipeline/curiosity-validation";
+import { curiosityCatalog } from "@/src/lib/curiosity-data";
 import { filterFeed, safeImageUrl } from "@/src/lib/feed-view";
 import type { DailyItem } from "@/src/types/daily-item";
 import { pickCuriosityItemsForDate } from "@/src/lib/curiosity-data";
@@ -151,3 +158,61 @@ assert.equal(
   "https://example.com/image.png",
 );
 console.log("All tests passed.");
+const archive = curiosityCatalog.slice(0, 8);
+const seen: string[] = [];
+for (let n = 0; n < archive.length; n += 1) {
+  const next = nextExploration(archive, seen, undefined, () => 0);
+  assert.ok(next);
+  assert.ok(!seen.includes(questionKey(next)));
+  seen.push(questionKey(next));
+}
+assert.equal(nextExploration(archive, seen), null);
+assert.equal(uniqueQuestions([...archive, ...archive]).length, archive.length);
+assert.notEqual(
+  nextExploration(archive, [], archive[0].category, () => 0)?.category,
+  archive[0].category,
+);
+const source = {
+  id: "verified-source",
+  source: "NASA",
+  url: "https://www.nasa.gov/example",
+  title: "Source material",
+};
+const knowledge = {
+  source_id: source.id,
+  category: "astronomy",
+  question: "为什么会有这个现象？",
+  hook: "这是一条可验证的知识线索。",
+  explanation: "这里只根据原始资料说明现象的原因。",
+  key_fact: "理解原理并保留原始出处。",
+  related_topics: ["科学"],
+  difficulty: 2,
+  source_url: "https://invented.example",
+};
+assert.equal(
+  validateCuriosityOutput({ items: [knowledge] }, [source])[0].source_url,
+  source.url,
+);
+assert.equal(
+  validateCuriosityOutput(
+    {
+      items: [knowledge, { ...knowledge, question: "同一来源的另一个问题？" }],
+    },
+    [source],
+  ).length,
+  1,
+);
+assert.equal(
+  validateCuriosityOutput(
+    { items: [{ ...knowledge, source_id: "invented" }] },
+    [source],
+  ).length,
+  0,
+);
+assert.equal(
+  validateCuriosityOutput({ items: [{ ...knowledge, explanation: "" }] }, [
+    source,
+  ]).length,
+  0,
+);
+console.log("Exploration archive and source validation tests passed.");

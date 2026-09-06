@@ -60,6 +60,20 @@ const empty = params.has("empty");
 const single = params.has("single");
 createRoot(document.getElementById("root")!).render(
   <DailyReportPage
+    initialExplorationItems={
+      empty
+        ? []
+        : single
+          ? curiosity.slice(0, 1)
+          : [
+              ...curiosity,
+              ...curiosity.map((item, n) => ({
+                ...item,
+                title: `归档测试问题 ${n}：为什么会发生？`,
+                report_date: "2026-09-01",
+              })),
+            ]
+    }
     initialCuriosityItems={
       empty ? [] : single ? curiosity.slice(0, 1) : curiosity
     }

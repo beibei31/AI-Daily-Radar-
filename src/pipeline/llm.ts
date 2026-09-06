@@ -46,7 +46,7 @@ type DecisionPayload = {
 };
 
 type JsonCompletionOptions = {
-  purpose: "batch" | "smoke";
+  purpose: "batch" | "smoke" | "curiosity";
   maxTokens: number;
   temperature?: number;
   buildMessages(attempt: number): LlmMessage[];
@@ -223,7 +223,7 @@ async function sleep(ms: number) {
   });
 }
 
-async function requestJsonCompletion(options: JsonCompletionOptions) {
+export async function requestJsonCompletion(options: JsonCompletionOptions) {
   const credentials = getLlmCredentials();
 
   if (!credentials) {
@@ -232,6 +232,7 @@ async function requestJsonCompletion(options: JsonCompletionOptions) {
 
   for (let attempt = 1; attempt <= maxLlmAttempts; attempt += 1) {
     const response = await fetch(credentials.endpoint, {
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         max_tokens: options.maxTokens,
         messages: options.buildMessages(attempt),

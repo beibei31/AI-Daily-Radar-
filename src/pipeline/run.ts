@@ -9,6 +9,7 @@ import { toScoredItem } from "@/src/pipeline/scoring";
 import { getSourceAdapters } from "@/src/pipeline/sources";
 import type { RawSourceItem } from "@/src/pipeline/types";
 import { rankWithLlm } from "@/src/pipeline/llm";
+import { getExplorationReport } from "@/src/lib/daily-items";
 
 async function fetchSources() {
   const adapters = getSourceAdapters();
@@ -65,7 +66,8 @@ export async function runPipeline() {
     .slice(0, 30);
 
   const saved = await saveToSupabase(scored);
-  const curiosity = generateCuriosityItems();
+  const archive = await getExplorationReport();
+  const curiosity = archive.status === "error" || archive.status === "missing_env" ? [] : await generateCuriosityItems(archive.items);
   const curiositySaved = await saveCuriosityToSupabase(curiosity);
 
   const result = {

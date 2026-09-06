@@ -5,11 +5,17 @@ import { resolve, join } from "node:path";
 import { createServer } from "node:http";
 import { build } from "esbuild";
 import { chromium } from "@playwright/test";
+import postcss from "postcss";
+import tailwind from "@tailwindcss/postcss";
 
 const root = process.cwd();
 const temporary = await mkdtemp(join(tmpdir(), "pulseai-ui-"));
 const output = resolve("artifacts/ui");
 await mkdir(output, { recursive: true });
+const compiledCss = await postcss([tailwind()]).process(
+  await readFile(join(root, "app/globals.css"), "utf8"),
+  { from: join(root, "app/globals.css") },
+);
 await build({
   entryPoints: ["tests/ui-fixture.tsx"],
   bundle: true,
@@ -22,6 +28,11 @@ const html =
   '<!doctype html><html lang="zh-CN"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"></head><body><div id="root"></div><script src="/test.js"></script></body></html>';
 const server = createServer(async (request, response) => {
   const pathname = new URL(request.url, "http://localhost").pathname;
+  if (pathname === "/style.css") {
+    response.setHeader("Content-Type", "text/css");
+    response.end(compiledCss.css);
+    return;
+  }
   const files = {
     "/test.js": [join(temporary, "test.js"), "text/javascript"],
     "/style.css": [join(root, "app/globals.css"), "text/css"],
@@ -128,6 +139,33 @@ try {
     await page.getByRole("button", { name: "换一个领域", exact: true }).click();
     assert.notEqual(await page.locator("#surprise h3").innerText(), previous);
     assert.equal(await page.locator("#surprise .curiosity-body").count(), 0);
+    const drawn = new Set([
+      previous,
+      await page.locator("#surprise h3").innerText(),
+    ]);
+    while (
+      await page
+        .getByRole("button", { name: "换一换，再探索", exact: true })
+        .count()
+    ) {
+      await page
+        .getByRole("button", { name: "换一换，再探索", exact: true })
+        .click();
+      const title = await page.locator("#surprise h3").innerText();
+      assert.ok(
+        !drawn.has(title),
+        "Exploration must not repeat before exhaustion",
+      );
+      drawn.add(title);
+    }
+    assert.equal(
+      drawn.size,
+      6,
+      "Archive must expose more than today's three questions",
+    );
+    assert.ok(
+      await page.getByRole("button", { name: "本轮已全部探索" }).isDisabled(),
+    );
     assert.ok(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -166,11 +204,16 @@ try {
       path: join(output, `empty-${width}.png`),
       fullPage: true,
     });
+    await page.evaluate(() =>
+      localStorage.removeItem("pulseai-exploration-seen"),
+    );
     await page.goto(`${url}/?single`);
-    await page.evaluate(() => localStorage.setItem("ai-daily-radar-curiosity-interests", "null"));
+    await page.evaluate(() =>
+      localStorage.setItem("ai-daily-radar-curiosity-interests", "null"),
+    );
     await page.getByRole("button", { name: "抽取一个未知问题" }).click();
     assert.ok(
-      await page.getByRole("button", { name: "换一换，再探索" }).isDisabled(),
+      await page.getByRole("button", { name: "本轮已全部探索" }).isDisabled(),
     );
     await page.close();
     console.log(
@@ -190,6 +233,8 @@ try {
       .getAttribute("aria-current"),
   );
   await page.mouse.move(450, 120);
+  await page.mouse.down();
+  await page.mouse.up();
   await page.waitForTimeout(200);
   const pixels = await page.locator("canvas").evaluate((canvas) => {
     const gl = canvas.getContext("webgl");
@@ -206,7 +251,10 @@ try {
       gl.UNSIGNED_BYTE,
       bytes,
     );
-    return bytes.some((value, n) => n % 4 === 3 && value > 0);
+    const chromatic = bytes.filter(
+      (value, n) => n % 4 === 1 && value > 65,
+    ).length;
+    return chromatic > canvas.width * canvas.height * 0.03;
   });
   assert.equal(pixels, true, "WebGL ripple must produce visible pixels");
   await page.screenshot({ path: join(output, "ripple.png") });
@@ -216,10 +264,21 @@ try {
   if (process.env.UI_LIVE_URL) {
     const liveErrors = [];
     page.on("pageerror", (error) => liveErrors.push(error.message));
-    const response = await page.goto(process.env.UI_LIVE_URL, { waitUntil: "networkidle", timeout: 60000 });
+    const response = await page.goto(process.env.UI_LIVE_URL, {
+      waitUntil: "networkidle",
+      timeout: 60000,
+    });
     assert.equal(response.status(), 200);
     assert.equal(await page.title(), "PulseAI | AI Daily Radar");
-    console.log("LIVE homepage:", JSON.stringify({ articles: await page.locator("#radar .card").count(), curiosity: await page.locator("#curiosity .curiosity-card").count(), notice: await page.locator(".notice").count(), hydrationErrors: liveErrors.length }));
+    console.log(
+      "LIVE homepage:",
+      JSON.stringify({
+        articles: await page.locator("#radar .card").count(),
+        curiosity: await page.locator("#curiosity .curiosity-card").count(),
+        notice: await page.locator(".notice").count(),
+        hydrationErrors: liveErrors.length,
+      }),
+    );
     await page.screenshot({ path: join(output, "live-homepage.png") });
     assert.deepEqual(liveErrors, []);
   }

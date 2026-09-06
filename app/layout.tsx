@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "@fontsource/plus-jakarta-sans/600.css";
+import "@fontsource/plus-jakarta-sans/700.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/600.css";
 
 export const metadata: Metadata = {
   title: "PulseAI | AI Daily Radar",
