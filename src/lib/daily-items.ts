@@ -4,6 +4,7 @@ import {
   getSupabaseReadClient,
   hasSupabaseReadEnv
 } from "@/src/lib/supabase";
+import type { CuriosityItem } from "@/src/types/curiosity-item";
 import type { DailyItem } from "@/src/types/daily-item";
 
 export type DailyReportStatus = "ready" | "empty" | "missing_env" | "error";
@@ -11,6 +12,11 @@ export type DailyReportStatus = "ready" | "empty" | "missing_env" | "error";
 export type DailyReport = {
   date: Date;
   items: DailyItem[];
+  status: DailyReportStatus;
+};
+
+export type DailyCuriosityReport = {
+  items: CuriosityItem[];
   status: DailyReportStatus;
 };
 
@@ -58,6 +64,54 @@ export async function getDailyReport(date = new Date()): Promise<DailyReport> {
 
     return {
       date,
+      items: [],
+      status: "error"
+    };
+  }
+}
+
+export async function getDailyCuriosityReport(
+  date = new Date()
+): Promise<DailyCuriosityReport> {
+  const reportDate = getShanghaiDateKey(date);
+
+  if (!hasSupabaseReadEnv()) {
+    return {
+      items: [],
+      status: "missing_env"
+    };
+  }
+
+  try {
+    const supabase = getSupabaseReadClient();
+    const { data, error } = await supabase
+      .from("curiosity_items")
+      .select("*")
+      .eq("report_date", reportDate)
+      .order("difficulty", { ascending: true })
+      .limit(3);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return {
+        items: [],
+        status: "empty"
+      };
+    }
+
+    return {
+      items: data as CuriosityItem[],
+      status: "ready"
+    };
+  } catch (error) {
+    logger.warn("Failed to load curiosity items.", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    return {
       items: [],
       status: "error"
     };

@@ -1,11 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { createClient } from "@supabase/supabase-js";
 import { DailyCard } from "@/src/components/DailyCard";
 import { ProductPatternCard } from "@/src/components/ProductPatternCard";
 import { curiosityCategoryLabels } from "@/src/lib/curiosity-data";
-import { formatShanghaiDate, getShanghaiDateKey } from "@/src/lib/date";
+import { formatShanghaiDate } from "@/src/lib/date";
 import type {
   CuriosityCategory,
   CuriosityItem
@@ -13,20 +12,29 @@ import type {
 import type { DailyItem } from "@/src/types/daily-item";
 import { isProductPattern } from "@/src/types/product-pattern";
 
+type DataStatus = "ready" | "empty" | "missing_env" | "error";
+
 type DailyReportState = {
-  date: Date | null;
+  date: Date;
   curiosityIndex: number;
   surpriseIndex: number;
   curiosityItems: CuriosityItem[];
-  curiosityStatus: "loading" | "ready" | "empty" | "error";
-  dailyStatus: "loading" | "ready" | "empty" | "error";
-  isLoading: boolean;
+  curiosityStatus: DataStatus;
+  dailyStatus: DataStatus;
   items: DailyItem[];
 };
 
 type RevealState = {
   curiosity: boolean;
   surprise: boolean;
+};
+
+type DailyReportPageProps = {
+  initialCuriosityItems: CuriosityItem[];
+  initialCuriosityStatus: DataStatus;
+  initialDailyStatus: DataStatus;
+  initialDate: string;
+  initialItems: DailyItem[];
 };
 
 const curiosityStorageKey = "ai-daily-radar-curiosity-interests";
@@ -180,62 +188,6 @@ function pickCuriosityIndex(
   return candidates[0].index;
 }
 
-async function loadDailyItems(date: Date): Promise<DailyItem[] | null> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabasePublishableKey) {
-    return null;
-  }
-
-  const reportDate = getShanghaiDateKey(date);
-  const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-    auth: {
-      persistSession: false
-    }
-  });
-  const { data, error } = await supabase
-    .from("daily_items")
-    .select("*")
-    .eq("report_date", reportDate)
-    .order("score", { ascending: false })
-    .limit(60);
-
-  if (error || !data || data.length === 0) {
-    return null;
-  }
-
-  return data as DailyItem[];
-}
-
-async function loadCuriosityItems(date: Date): Promise<CuriosityItem[] | null> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabasePublishableKey) {
-    return null;
-  }
-
-  const reportDate = getShanghaiDateKey(date);
-  const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-    auth: {
-      persistSession: false
-    }
-  });
-  const { data, error } = await supabase
-    .from("curiosity_items")
-    .select("*")
-    .eq("report_date", reportDate)
-    .order("difficulty", { ascending: true })
-    .limit(3);
-
-  if (error || !data || data.length === 0) {
-    return null;
-  }
-
-  return data as CuriosityItem[];
-}
-
 function curiosityQuestion(item: CuriosityItem) {
   return item.question || item.title;
 }
@@ -332,64 +284,38 @@ function CuriosityRevealCard({
   );
 }
 
-export function DailyReportPage() {
+function dataNoticeText(report: DailyReportState) {
+  if (report.dailyStatus === "missing_env" || report.curiosityStatus === "missing_env") {
+    return "服务端缺少 Supabase 环境变量。请检查 .env.local 或 Vercel / GitHub Secrets。";
+  }
+
+  if (report.dailyStatus === "error" || report.curiosityStatus === "error") {
+    return "读取 Supabase 时出错。请检查表结构、RLS 权限，或终端里的 Next 日志。";
+  }
+
+  return "当前未读取到 Supabase 当日完整数据。请确认已执行 report_date 迁移，并重新运行 npm run pipeline。";
+}
+
+export function DailyReportPage({
+  initialCuriosityItems,
+  initialCuriosityStatus,
+  initialDailyStatus,
+  initialDate,
+  initialItems
+}: DailyReportPageProps) {
   const [revealed, setRevealed] = React.useState<RevealState>({
     curiosity: false,
     surprise: false
   });
   const [report, setReport] = React.useState<DailyReportState>({
     curiosityIndex: 0,
-    curiosityItems: [],
-    curiosityStatus: "loading",
-    dailyStatus: "loading",
-    date: null,
-    isLoading: true,
-    items: [],
-    surpriseIndex: 1
+    curiosityItems: initialCuriosityItems,
+    curiosityStatus: initialCuriosityStatus,
+    dailyStatus: initialDailyStatus,
+    date: new Date(initialDate),
+    items: initialItems,
+    surpriseIndex: initialCuriosityItems.length > 1 ? 1 : 0
   });
-
-  React.useEffect(() => {
-    let isMounted = true;
-    const date = new Date();
-
-    Promise.all([loadDailyItems(date), loadCuriosityItems(date)])
-      .then(([items, curiosityItems]) => {
-        if (!isMounted) {
-          return;
-        }
-
-        setReport({
-          curiosityIndex: 0,
-          curiosityItems: curiosityItems ?? [],
-          curiosityStatus: curiosityItems ? "ready" : "empty",
-          dailyStatus: items ? "ready" : "empty",
-          date,
-          isLoading: false,
-          items: items ?? [],
-          surpriseIndex: curiosityItems && curiosityItems.length > 1 ? 1 : 0
-        });
-      })
-      .catch(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        setReport({
-          curiosityIndex: 0,
-          curiosityItems: [],
-          curiosityStatus: "error",
-          dailyStatus: "error",
-          date,
-          isLoading: false,
-          items: [],
-          surpriseIndex: 1
-        });
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   const topItems = getTopItems(report.items);
   const topKeys = new Set(topItems.map(itemKey));
@@ -462,7 +388,6 @@ export function DailyReportPage() {
   }
 
   const hasMissingData =
-    !report.isLoading &&
     (report.dailyStatus !== "ready" || report.curiosityStatus !== "ready");
 
   return (
@@ -474,17 +399,13 @@ export function DailyReportPage() {
           <p className="subtitle">每天帮你筛选、解释、启发，也发现一点新世界。</p>
         </div>
         <div className="date-pill">
-          {report.date ? formatShanghaiDate(report.date) : "正在读取日期"}
+          {formatShanghaiDate(report.date)}
         </div>
       </header>
 
-      {report.isLoading || hasMissingData ? (
+      {hasMissingData ? (
         <div className="notice">
-          <span>
-            {report.isLoading
-              ? "正在读取 Supabase 今日数据。"
-              : "当前未读取到 Supabase 当日完整数据。页面不会展示内置样例；请运行 npm run pipeline，或检查 Supabase 环境变量和读取权限。"}
-          </span>
+          <span>{dataNoticeText(report)}</span>
         </div>
       ) : null}
 
