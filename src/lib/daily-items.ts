@@ -1,16 +1,17 @@
 import { getShanghaiDayBounds } from "@/src/lib/date";
 import { logger } from "@/src/lib/logger";
-import { mockDailyItems } from "@/src/lib/mock-data";
 import {
   getSupabaseReadClient,
   hasSupabaseReadEnv
 } from "@/src/lib/supabase";
 import type { DailyItem } from "@/src/types/daily-item";
 
+export type DailyReportStatus = "ready" | "empty" | "missing_env" | "error";
+
 export type DailyReport = {
   date: Date;
-  isFallback: boolean;
   items: DailyItem[];
+  status: DailyReportStatus;
 };
 
 export async function getDailyReport(date = new Date()): Promise<DailyReport> {
@@ -19,8 +20,8 @@ export async function getDailyReport(date = new Date()): Promise<DailyReport> {
   if (!hasSupabaseReadEnv()) {
     return {
       date,
-      isFallback: true,
-      items: mockDailyItems
+      items: [],
+      status: "missing_env"
     };
   }
 
@@ -41,26 +42,25 @@ export async function getDailyReport(date = new Date()): Promise<DailyReport> {
     if (!data || data.length === 0) {
       return {
         date,
-        isFallback: true,
-        items: mockDailyItems
+        items: [],
+        status: "empty"
       };
     }
 
     return {
       date,
-      isFallback: false,
-      items: data as DailyItem[]
+      items: data as DailyItem[],
+      status: "ready"
     };
   } catch (error) {
-    logger.warn("Falling back to mock daily items.", {
+    logger.warn("Failed to load daily items.", {
       error: error instanceof Error ? error.message : String(error)
     });
 
     return {
       date,
-      isFallback: true,
-      items: mockDailyItems
+      items: [],
+      status: "error"
     };
   }
 }
-

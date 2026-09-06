@@ -304,8 +304,6 @@ export const curiosityCatalog: CuriosityItem[] = [
   }
 ];
 
-export const mockCuriosityItems = pickCuriosityItemsForDate(new Date(), 3);
-
 export function pickCuriosityItemsForDate(
   date: Date,
   count: number,

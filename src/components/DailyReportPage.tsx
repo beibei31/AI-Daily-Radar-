@@ -4,13 +4,8 @@ import * as React from "react";
 import { createClient } from "@supabase/supabase-js";
 import { DailyCard } from "@/src/components/DailyCard";
 import { ProductPatternCard } from "@/src/components/ProductPatternCard";
-import {
-  curiosityCatalog,
-  curiosityCategoryLabels,
-  mockCuriosityItems
-} from "@/src/lib/curiosity-data";
+import { curiosityCategoryLabels } from "@/src/lib/curiosity-data";
 import { getShanghaiDayBounds, formatShanghaiDate } from "@/src/lib/date";
-import { mockDailyItems } from "@/src/lib/mock-data";
 import type {
   CuriosityCategory,
   CuriosityItem
@@ -19,11 +14,12 @@ import type { DailyItem } from "@/src/types/daily-item";
 import { isProductPattern } from "@/src/types/product-pattern";
 
 type DailyReportState = {
-  date: Date;
+  date: Date | null;
   curiosityIndex: number;
   surpriseIndex: number;
   curiosityItems: CuriosityItem[];
-  isFallback: boolean;
+  curiosityStatus: "loading" | "ready" | "empty" | "error";
+  dailyStatus: "loading" | "ready" | "empty" | "error";
   isLoading: boolean;
   items: DailyItem[];
 };
@@ -59,21 +55,6 @@ function getSectionItems(
     .filter((item) => categories.includes(item.category))
     .filter((item) => !excludedKeys.has(itemKey(item)))
     .slice(0, limit);
-}
-
-function mergeCuriosityItems(primary: CuriosityItem[]) {
-  const seen = new Set<string>();
-
-  return [...primary, ...curiosityCatalog].filter((item) => {
-    const key = item.title;
-
-    if (seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  });
 }
 
 function Section({
@@ -261,6 +242,10 @@ function curiosityQuestion(item: CuriosityItem) {
   return item.question || item.title;
 }
 
+function EmptyContent({ message }: { message: string }) {
+  return <div className="empty">{message}</div>;
+}
+
 function CuriosityRevealCard({
   item,
   marker,
@@ -271,7 +256,7 @@ function CuriosityRevealCard({
   onNext,
   nextLabel
 }: {
-  item: CuriosityItem;
+  item: CuriosityItem | null;
   marker: string;
   title: string;
   countLabel: string;
@@ -290,6 +275,9 @@ function CuriosityRevealCard({
         <span className="section-count">{countLabel}</span>
       </div>
 
+      {!item ? (
+        <EmptyContent message="今天暂时没有 Curiosity 数据。运行 pipeline 后，这里会显示当天问题。" />
+      ) : (
       <article className="curiosity-card">
         <div>
           <div className="curiosity-meta">
@@ -341,6 +329,7 @@ function CuriosityRevealCard({
           ) : null}
         </div>
       </article>
+      )}
     </section>
   );
 }
@@ -352,11 +341,12 @@ export function DailyReportPage() {
   });
   const [report, setReport] = React.useState<DailyReportState>({
     curiosityIndex: 0,
-    curiosityItems: mergeCuriosityItems(mockCuriosityItems),
-    date: new Date(),
-    isFallback: true,
+    curiosityItems: [],
+    curiosityStatus: "loading",
+    dailyStatus: "loading",
+    date: null,
     isLoading: true,
-    items: mockDailyItems,
+    items: [],
     surpriseIndex: 1
   });
 
@@ -370,18 +360,15 @@ export function DailyReportPage() {
           return;
         }
 
-        const mergedCuriosityItems = mergeCuriosityItems(
-          curiosityItems ?? mockCuriosityItems
-        );
-
         setReport({
           curiosityIndex: 0,
-          curiosityItems: mergedCuriosityItems,
+          curiosityItems: curiosityItems ?? [],
+          curiosityStatus: curiosityItems ? "ready" : "empty",
+          dailyStatus: items ? "ready" : "empty",
           date,
-          isFallback: !items || !curiosityItems,
           isLoading: false,
-          items: items ?? mockDailyItems,
-          surpriseIndex: mergedCuriosityItems.length > 1 ? 1 : 0
+          items: items ?? [],
+          surpriseIndex: curiosityItems && curiosityItems.length > 1 ? 1 : 0
         });
       })
       .catch(() => {
@@ -391,11 +378,12 @@ export function DailyReportPage() {
 
         setReport({
           curiosityIndex: 0,
-          curiosityItems: mergeCuriosityItems(mockCuriosityItems),
+          curiosityItems: [],
+          curiosityStatus: "error",
+          dailyStatus: "error",
           date,
-          isFallback: true,
           isLoading: false,
-          items: mockDailyItems,
+          items: [],
           surpriseIndex: 1
         });
       });
@@ -421,13 +409,14 @@ export function DailyReportPage() {
     topKeys
   );
   const curiosityItem =
-    report.curiosityItems[report.curiosityIndex] ?? mockCuriosityItems[0];
-  const surpriseItem =
-    report.curiosityItems[report.surpriseIndex] ??
-    report.curiosityItems[0] ??
-    mockCuriosityItems[0];
+    report.curiosityItems[report.curiosityIndex] ?? null;
+  const surpriseItem = report.curiosityItems[report.surpriseIndex] ?? null;
 
   function handleLearnAnother() {
+    if (!curiosityItem) {
+      return;
+    }
+
     recordCuriosityInterest(curiosityItem.category);
     setRevealed((current) => ({ ...current, curiosity: false }));
     setReport((current) => ({
@@ -441,6 +430,10 @@ export function DailyReportPage() {
   }
 
   function handleSurprise() {
+    if (!surpriseItem) {
+      return;
+    }
+
     setRevealed((current) => ({ ...current, surprise: false }));
     setReport((current) => ({
       ...current,
@@ -453,14 +446,26 @@ export function DailyReportPage() {
   }
 
   function revealCuriosity() {
+    if (!curiosityItem) {
+      return;
+    }
+
     recordCuriosityInterest(curiosityItem.category);
     setRevealed((current) => ({ ...current, curiosity: true }));
   }
 
   function revealSurprise() {
+    if (!surpriseItem) {
+      return;
+    }
+
     recordCuriosityInterest(surpriseItem.category);
     setRevealed((current) => ({ ...current, surprise: true }));
   }
+
+  const hasMissingData =
+    !report.isLoading &&
+    (report.dailyStatus !== "ready" || report.curiosityStatus !== "ready");
 
   return (
     <main className="page">
@@ -470,15 +475,17 @@ export function DailyReportPage() {
           <h1>Good Morning</h1>
           <p className="subtitle">每天帮你筛选、解释、启发，也发现一点新世界。</p>
         </div>
-        <div className="date-pill">{formatShanghaiDate(report.date)}</div>
+        <div className="date-pill">
+          {report.date ? formatShanghaiDate(report.date) : "正在读取日期"}
+        </div>
       </header>
 
-      {report.isFallback ? (
+      {report.isLoading || hasMissingData ? (
         <div className="notice">
           <span>
             {report.isLoading
-              ? "正在读取今日内容；如果没有配置 Supabase，将展示内置样例。"
-              : "当前未读取到 Supabase 当日完整数据，页面正在展示内置样例。配置数据库后会自动切换为真实内容。"}
+              ? "正在读取 Supabase 今日数据。"
+              : "当前未读取到 Supabase 当日完整数据。页面不会展示内置样例；请运行 npm run pipeline，或检查 Supabase 环境变量和读取权限。"}
           </span>
         </div>
       ) : null}

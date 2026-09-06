@@ -34,7 +34,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Without Supabase env vars, the static homepage displays richer mock data so UI work and deployment checks still run. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
+Without Supabase env vars or same-day rows, the homepage shows an empty state instead of sample news. With `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, the browser reads today's Tech and Curiosity rows from Supabase.
 
 ## Supabase Setup
 
@@ -163,7 +163,7 @@ Included:
 
 - Responsive daily homepage
 - Supabase-backed `daily_items` and `curiosity_items`
-- Mock fallback
+- Empty states when Supabase has no same-day rows
 - RSS/API source adapter structure
 - GitHub, Hacker News, Brabble Hackathons, InfoQ 中文, OSChina, and RSS sources
 - LLM-compatible ranking/categorization/summarization
