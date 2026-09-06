@@ -25,14 +25,28 @@ export function RippleBackground() {
     gl.shaderSource(
       fragment,
       `precision mediump float;
-      uniform vec2 u_resolution; uniform vec2 u_mouse;
-      uniform float u_time; uniform vec3 u_click; uniform float u_energy;
+      uniform vec2 u_resolution;
+      uniform float u_time; uniform vec3 u_click;
+      uniform vec4 u_trail[12]; uniform vec2 u_birth[12];
       void main(){
         vec2 uv=(gl_FragCoord.xy*2.-u_resolution)/min(u_resolution.x,u_resolution.y);
-        vec2 mouse=(u_mouse*2.-u_resolution)/min(u_resolution.x,u_resolution.y);
-        float d=length(uv-mouse);
-        float ripple=(sin(d*20.-u_time*5.)+.55*sin(d*33.-u_time*7.))*exp(-d*1.7);
-        vec2 p=uv*1.3+vec2(ripple*.18*u_energy,ripple*.12*u_energy);
+        float ripple=0.; float glow=0.;
+        for(int i=0;i<12;i++){
+          float age=u_time-u_birth[i].x;
+          if(u_birth[i].y>0. && age>=0. && age<1.8){
+            vec2 a=(u_trail[i].xy*2.-1.)*u_resolution/min(u_resolution.x,u_resolution.y);
+            vec2 b=(u_trail[i].zw*2.-1.)*u_resolution/min(u_resolution.x,u_resolution.y);
+            vec2 segment=b-a;
+            float along=clamp(dot(uv-a,segment)/max(dot(segment,segment),.00001),0.,1.);
+            float d=length(uv-a-segment*along);
+            float fade=pow(1.-age/1.8,2.);
+            float envelope=exp(-d*d/(.003+age*.009))*fade;
+            float wave=sin(d*65.-age*9.);
+            ripple+=wave*envelope;
+            glow+=pow(.5+.5*wave,2.)*envelope;
+          }
+        }
+        vec2 p=uv*1.3+vec2(ripple*.08,ripple*.06);
         float t=u_time*.28;
         float w1=sin(p.x*2.2+t+sin(p.y*1.8+t*.8));
         float w2=cos(p.y*2.5-t*.9+cos(p.x*2.-t*.7));
@@ -44,13 +58,13 @@ export function RippleBackground() {
         col+=purple*pow(1.-fluid,3.)*.42;
         col+=vec3(0.,1.,.64)*pow(abs(sin(p.x*3.+t)),4.)*.035;
         col*=clamp(1.-length(uv)*.20,.35,1.);
-        col+=mix(purple,cyan,.5+.5*sin(d*9.-u_time))*pow(abs(ripple),2.)*.48*u_energy;
+        col+=mix(purple,cyan,.65)*min(glow,1.4)*.65;
         vec2 click=(u_click.xy*2.-u_resolution)/min(u_resolution.x,u_resolution.y);
         float age=u_time-u_click.z;
         if(age>=0. && age<3.){
           float dist=length(uv-click);
-          float front=dist-age*.65;
-          float rings=pow(.5+.5*sin(front*29.),3.)*exp(-front*front*5.);
+            float front=dist-age*.25;
+            float rings=pow(.5+.5*sin(front*65.),3.)*exp(-front*front*180.);
           col+=mix(purple,cyan,.5+.5*sin(dist*6.))*rings*(1.-age/3.)*.75;
         }
         gl_FragColor=vec4(col,1.);
@@ -80,17 +94,16 @@ export function RippleBackground() {
     gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
     const res = gl.getUniformLocation(program, "u_resolution"),
       time = gl.getUniformLocation(program, "u_time");
-    const mouseLoc = gl.getUniformLocation(program, "u_mouse"),
-      clickLoc = gl.getUniformLocation(program, "u_click"),
-      energyLoc = gl.getUniformLocation(program, "u_energy");
+    const trailLoc = gl.getUniformLocation(program, "u_trail[0]"),
+      birthLoc = gl.getUniformLocation(program, "u_birth[0]"),
+      clickLoc = gl.getUniformLocation(program, "u_click");
+    const trail = new Float32Array(48), birth = new Float32Array(24);
     let frame = 0,
       lastFrame = 0,
       elapsed = 0,
-      lastActive = 0,
-      energy = 0;
-    let target = { x: 0.5, y: 0.5 },
-      mouse = { ...target },
-      click = { x: 0, y: 0, at: -100 };
+      slot = 0;
+    let previous: { x: number; y: number; at: number } | null = null;
+    let click = { x: 0, y: 0, at: -100 };
     const resize = () => {
       const scale = Math.min(devicePixelRatio, 1.25, 1440 / innerWidth);
       canvas.width = Math.round(innerWidth * scale);
@@ -103,35 +116,44 @@ export function RippleBackground() {
       if (now - lastFrame >= 1000 / 30) {
         elapsed += Math.min((now - lastFrame) / 1000, 0.05);
         lastFrame = now;
-        mouse.x += (target.x - mouse.x) * 0.22;
-        mouse.y += (target.y - mouse.y) * 0.22;
-        energy +=
-          (Math.max(0.12, 1 - (performance.now() - lastActive) / 2500) -
-            energy) *
-          0.15;
         gl.uniform2f(res, canvas.width, canvas.height);
         gl.uniform1f(time, elapsed);
-        gl.uniform2f(mouseLoc, mouse.x * canvas.width, mouse.y * canvas.height);
+        gl.uniform4fv(trailLoc, trail);
+        gl.uniform2fv(birthLoc, birth);
         gl.uniform3f(
           clickLoc,
           click.x * canvas.width,
           click.y * canvas.height,
           click.at,
         );
-        gl.uniform1f(energyLoc, energy);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       frame = requestAnimationFrame(draw);
     };
     const move = (event: PointerEvent) => {
-      target = {
+      if (document.hidden || media.matches || !event.isPrimary) return;
+      const target = {
         x: event.clientX / innerWidth,
         y: 1 - event.clientY / innerHeight,
+        at: performance.now(),
       };
-      lastActive = performance.now();
-      if (event.type === "pointerdown") click = { ...target, at: elapsed };
+      if (event.type === "pointerdown") {
+        click = { ...target, at: elapsed };
+        previous = target;
+        return;
+      }
+      if (previous && target.at - previous.at < 40) return;
+      if (previous && Math.hypot((target.x-previous.x)*innerWidth, (target.y-previous.y)*innerHeight) < 3) return;
+      // Each deposited segment is immutable until its ring-buffer slot is reused.
+      const start = previous && target.at - previous.at < 180 ? previous : target;
+      trail.set([start.x, start.y, target.x, target.y], slot * 4);
+      birth.set([elapsed, 1], slot * 2);
+      slot = (slot + 1) % 12;
+      previous = target;
     };
+    const leave = () => { previous = null; };
     const sync = () => {
+      leave();
       cancelAnimationFrame(frame);
       frame = 0;
       if (!document.hidden && !media.matches) {
@@ -144,6 +166,8 @@ export function RippleBackground() {
     window.addEventListener("resize", resize);
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerdown", move, { passive: true });
+    document.addEventListener("pointerleave", leave);
+    window.addEventListener("blur", leave);
     document.addEventListener("visibilitychange", sync);
     media.addEventListener("change", sync);
     return () => {
@@ -151,6 +175,8 @@ export function RippleBackground() {
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerdown", move);
+      document.removeEventListener("pointerleave", leave);
+      window.removeEventListener("blur", leave);
       document.removeEventListener("visibilitychange", sync);
       media.removeEventListener("change", sync);
       gl.deleteBuffer(buffer);

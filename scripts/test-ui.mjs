@@ -236,6 +236,50 @@ try {
   await page.mouse.down();
   await page.mouse.up();
   await page.waitForTimeout(200);
+  const readWaveState = () => page.locator("canvas").evaluate((canvas) => {
+    const gl = canvas.getContext("webgl");
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    const read = (name) => Array.from(gl.getUniform(program, gl.getUniformLocation(program, name)));
+    return {
+      trail: Array.from({ length: 12 }, (_, i) => read(`u_trail[${i}]`)),
+      birth: Array.from({ length: 12 }, (_, i) => read(`u_birth[${i}]`)),
+      click: read("u_click"),
+    };
+  });
+  const beforeMove = await readWaveState();
+  await page.mouse.move(1050, 650);
+  await page.waitForTimeout(100);
+  const afterMove = await readWaveState();
+  for (let i = 0; i < 12; i++) {
+    if (beforeMove.birth[i][1] > 0) {
+      assert.deepEqual(afterMove.trail[i], beforeMove.trail[i], "Old waves must stay at their deposited positions");
+      assert.deepEqual(afterMove.birth[i], beforeMove.birth[i], "Movement must not restart old waves");
+    }
+  }
+  assert.deepEqual(afterMove.click, beforeMove.click, "Click ripple must not follow the cursor");
+  assert.ok(afterMove.birth.filter((value) => value[1] > 0).length > beforeMove.birth.filter((value) => value[1] > 0).length);
+  const locality = await page.locator("canvas").evaluate((canvas) => {
+    const gl = canvas.getContext("webgl");
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    const birthLocation = gl.getUniformLocation(program, "u_birth[0]");
+    const saved = new Float32Array(24);
+    for (let i = 0; i < 12; i++) saved.set(gl.getUniform(program, gl.getUniformLocation(program, `u_birth[${i}]`)), i * 2);
+    const sample = (x, y) => {
+      const pixel = new Uint8Array(4);
+      gl.readPixels(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      return Array.from(pixel);
+    };
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    const distant = sample(.1, .5);
+    const nearby = sample(.875, .1875);
+    gl.uniform2fv(birthLocation, new Float32Array(24));
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    const result = { distant, distantWithout: sample(.1, .5), nearby, nearbyWithout: sample(.875, .1875) };
+    gl.uniform2fv(birthLocation, saved);
+    return result;
+  });
+  assert.deepEqual(locality.distant, locality.distantWithout, "Pointer waves must not alter distant pixels");
+  assert.notDeepEqual(locality.nearby, locality.nearbyWithout, "Pointer waves must visibly disturb the local surface");
   const pixels = await page.locator("canvas").evaluate((canvas) => {
     const gl = canvas.getContext("webgl");
     if (!gl) return null;
@@ -260,7 +304,7 @@ try {
   await page.screenshot({ path: join(output, "ripple.png") });
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(await page.locator("canvas").isVisible(), false);
-  console.log("PASS autoplay, WebGL pixels and reduced motion");
+  console.log("PASS autoplay, anchored localized WebGL waves, pixels and reduced motion");
   if (process.env.UI_LIVE_URL) {
     const liveErrors = [];
     page.on("pageerror", (error) => liveErrors.push(error.message));
