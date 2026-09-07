@@ -280,6 +280,24 @@ try {
   });
   assert.deepEqual(locality.distant, locality.distantWithout, "Pointer waves must not alter distant pixels");
   assert.notDeepEqual(locality.nearby, locality.nearbyWithout, "Pointer waves must visibly disturb the local surface");
+  const idleIsStill = await page.locator("canvas").evaluate((canvas) => {
+    const gl = canvas.getContext("webgl");
+    const program = gl.getParameter(gl.CURRENT_PROGRAM);
+    const location = gl.getUniformLocation(program, "u_time");
+    const original = gl.getUniform(program, location);
+    const render = (time) => {
+      gl.uniform1f(location, time);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+      gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      return pixels;
+    };
+    const first = render(original + 100);
+    const second = render(original + 105);
+    gl.uniform1f(location, original);
+    return first.every((value, i) => value === second[i]);
+  });
+  assert.equal(idleIsStill, true, "After pointer tint fades, the background must stay still");
   const pixels = await page.locator("canvas").evaluate((canvas) => {
     const gl = canvas.getContext("webgl");
     if (!gl) return null;

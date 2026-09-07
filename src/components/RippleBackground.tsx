@@ -20,8 +20,7 @@ export function RippleBackground() {
     );
     gl.compileShader(vertex);
     const fragment = gl.createShader(gl.FRAGMENT_SHADER)!;
-    // Adapted from the supplied Stitch shader. Clamp fractional powers to
-    // avoid undefined colors; retain the source's layered, flowing wave field.
+    // Keep the background still; pointer samples briefly tint only nearby pixels.
     gl.shaderSource(
       fragment,
       `precision mediump float;
@@ -30,7 +29,7 @@ export function RippleBackground() {
       uniform vec4 u_trail[12]; uniform vec2 u_birth[12];
       void main(){
         vec2 uv=(gl_FragCoord.xy*2.-u_resolution)/min(u_resolution.x,u_resolution.y);
-        float ripple=0.; float glow=0.;
+        float glow=0.;
         for(int i=0;i<12;i++){
           float age=u_time-u_birth[i].x;
           if(u_birth[i].y>0. && age>=0. && age<1.8){
@@ -40,14 +39,11 @@ export function RippleBackground() {
             float along=clamp(dot(uv-a,segment)/max(dot(segment,segment),.00001),0.,1.);
             float d=length(uv-a-segment*along);
             float fade=pow(1.-age/1.8,2.);
-            float envelope=exp(-d*d/(.003+age*.009))*fade;
-            float wave=sin(d*65.-age*9.);
-            ripple+=wave*envelope;
-            glow+=pow(.5+.5*wave,2.)*envelope;
+            glow+=exp(-d*d/.045)*fade;
           }
         }
-        vec2 p=uv*1.3+vec2(ripple*.08,ripple*.06);
-        float t=u_time*.28;
+        vec2 p=uv*1.3;
+        float t=.7;
         float w1=sin(p.x*2.2+t+sin(p.y*1.8+t*.8));
         float w2=cos(p.y*2.5-t*.9+cos(p.x*2.-t*.7));
         float w3=sin((p.x+p.y)*1.5+t*1.2);
@@ -58,14 +54,12 @@ export function RippleBackground() {
         col+=purple*pow(1.-fluid,3.)*.42;
         col+=vec3(0.,1.,.64)*pow(abs(sin(p.x*3.+t)),4.)*.035;
         col*=clamp(1.-length(uv)*.20,.35,1.);
-        col+=mix(purple,cyan,.65)*min(glow,1.4)*.65;
+        col=mix(col,col+mix(purple,cyan,.65)*.16,1.-exp(-glow));
         vec2 click=(u_click.xy*2.-u_resolution)/min(u_resolution.x,u_resolution.y);
         float age=u_time-u_click.z;
         if(age>=0. && age<3.){
           float dist=length(uv-click);
-            float front=dist-age*.25;
-            float rings=pow(.5+.5*sin(front*65.),3.)*exp(-front*front*180.);
-          col+=mix(purple,cyan,.5+.5*sin(dist*6.))*rings*(1.-age/3.)*.75;
+          col+=mix(purple,cyan,.65)*exp(-dist*dist/.045)*pow(1.-age/3.,2.)*.08;
         }
         gl_FragColor=vec4(col,1.);
       }`,
