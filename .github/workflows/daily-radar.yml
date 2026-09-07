@@ -4,9 +4,36 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "30 0 * * *"
+    # Temporary trigger probe: 2026-09-07 11:07 Asia/Shanghai. Remove after observation.
+    - cron: "7 3 7 9 *"
 
 jobs:
+  schedule-probe:
+    if: github.event_name == 'schedule' && github.event.schedule == '7 3 7 9 *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Record automatic scheduler delivery
+        env:
+          TRIGGER: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ "$(date -u +%F)" != "2026-09-07" ]; then
+            echo "Temporary probe expired; no pipeline will run."
+            exit 0
+          fi
+          {
+            echo "## Automatic schedule probe"
+            echo "Event: $TRIGGER"
+            echo "Schedule (UTC): $SCHEDULE"
+            echo "Observed at (UTC): $(date -u +%FT%TZ)"
+            echo "Commit: $GITHUB_SHA"
+            echo "Scheduler only: no LLM calls, secrets or database access."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
   daily-radar:
+    if: github.event_name != 'schedule' || github.event.schedule == '30 0 * * *'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
