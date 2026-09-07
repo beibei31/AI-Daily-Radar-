@@ -13,6 +13,8 @@ import { getCuriosityTopicOptions } from "@/src/lib/curiosity-interactions";
 import { getShanghaiDateKey } from "@/src/lib/date";
 import { deduplicate } from "@/src/pipeline/dedupe";
 import { heuristicDecision } from "@/src/pipeline/heuristic";
+import { rankWithLlm } from "@/src/pipeline/llm";
+import { RssSourceAdapter } from "@/src/pipeline/sources/rss";
 import type { NormalizedItem } from "@/src/pipeline/types";
 
 function item(overrides: Partial<NormalizedItem>): NormalizedItem {
@@ -88,6 +90,115 @@ function testHeuristicDecisionIncludesV11Fields() {
   assert.ok(decision.action.length > 12);
 }
 
+function testHeuristicFallbackKeepsSourceFactsWithoutRankingJargon() {
+  const decision = heuristicDecision(
+    item({
+      summary:
+        "项目发布了新的本地执行引擎。它增加了 Java SDK、断点续跑和结构化日志。官方说明目前仍不支持 Windows 沙箱，并给出了迁移步骤。",
+      tags: ["Agent", "Java"],
+      title: "Agent Runtime 2.0 发布",
+    }),
+  );
+
+  assert.match(decision.what_happened, /Java SDK/);
+  assert.match(decision.what_happened, /Windows 沙箱/);
+  assert.doesNotMatch(
+    `${decision.reason} ${decision.why_it_matters}`,
+    /命中|匹配个人偏好/,
+  );
+}
+
+async function testLlmDecisionPreservesDetailedBrief() {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.LLM_API_KEY;
+  const originalBaseUrl = process.env.LLM_API_BASE_URL;
+  const detailedBrief = "详".repeat(420);
+
+  process.env.LLM_API_KEY = "test-key";
+  process.env.LLM_API_BASE_URL = "https://llm.test";
+  globalThis.fetch = async () =>
+    new Response(
+      JSON.stringify({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                items: [
+                  {
+                    action: "运行官方示例并核对兼容性限制。",
+                    category: "tool",
+                    content_type: "tool",
+                    id: "detailed-item",
+                    importance: 8,
+                    keep: true,
+                    personal_score: 9,
+                    reason: "这项更新会影响现有开发工作流。",
+                    summary: detailedBrief,
+                    tags: ["Agent"],
+                    what_happened: detailedBrief,
+                    why_it_matters: detailedBrief,
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  try {
+    const decisions = await rankWithLlm([
+      item({ id: "detailed-item", summary: "来源摘要", tags: ["Agent"] }),
+    ]);
+    const decision = decisions.get("detailed-item");
+
+    assert.equal(decision?.what_happened.length, 420);
+    assert.equal(decision?.why_it_matters.length, 420);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.LLM_API_KEY;
+    else process.env.LLM_API_KEY = originalApiKey;
+    if (originalBaseUrl === undefined) delete process.env.LLM_API_BASE_URL;
+    else process.env.LLM_API_BASE_URL = originalBaseUrl;
+  }
+}
+
+async function testRssAdapterUsesRichestAvailableSourceText() {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response(
+      `<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel>
+          <item>
+            <title>Agent Runtime 2.0</title>
+            <link>https://example.com/runtime</link>
+            <description>短摘要。</description>
+            <content:encoded><![CDATA[
+              <p>这是包含版本背景、主要功能、迁移方式和兼容性限制的较完整官方正文。</p>
+            ]]></content:encoded>
+          </item>
+        </channel>
+      </rss>`,
+      { status: 200, headers: { "content-type": "application/rss+xml" } },
+    );
+
+  try {
+    const adapter = new RssSourceAdapter({
+      id: "rich-rss",
+      label: "Rich RSS",
+      url: "https://example.com/feed.xml",
+    });
+    const [entry] = await adapter.fetchItems();
+
+    assert.match(entry.summary ?? "", /迁移方式和兼容性限制/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 function testProductPatternFallback() {
   const decision = heuristicDecision(
     item({
@@ -111,6 +222,7 @@ testShanghaiReportDateKey();
 testCuriosityDailySelection();
 testCuriosityTopicOptionsAreUnique();
 testHeuristicDecisionIncludesV11Fields();
+testHeuristicFallbackKeepsSourceFactsWithoutRankingJargon();
 testProductPatternFallback();
 
 const feed: DailyItem[] = [
@@ -216,3 +328,13 @@ assert.equal(
   0,
 );
 console.log("Exploration archive and source validation tests passed.");
+
+async function runAsyncTests() {
+  await testLlmDecisionPreservesDetailedBrief();
+  await testRssAdapterUsesRichestAvailableSourceText();
+}
+
+runAsyncTests().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

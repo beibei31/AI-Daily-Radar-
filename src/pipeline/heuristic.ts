@@ -89,13 +89,12 @@ function inferContentType(category: Category, text: string): ContentType {
   return "news";
 }
 
-function sentence(value: string | null, fallback: string) {
+function sourceBrief(value: string | null, fallback: string) {
   if (!value) {
     return fallback;
   }
 
-  const first = value.split(/(?<=[.!?。！？])\s+/)[0];
-  return first.slice(0, 180);
+  return value.trim().slice(0, 900);
 }
 
 function unique(values: string[]) {
@@ -163,6 +162,22 @@ function actionForCategory(category: Category, item: NormalizedItem) {
   return "先读官方来源的变更点，再记录它对 Agent、AI Coding 或后端项目的一个具体影响。";
 }
 
+function fallbackContext(category: Category) {
+  if (category === "hackathon") {
+    return "自动详细解读暂不可用。可先依据上方来源摘要确认主题，再到活动页核对报名对象、截止时间、赛题和提交要求。";
+  }
+
+  if (category === "product") {
+    return "自动详细解读暂不可用。可先依据上方来源摘要了解产品，再从目标用户、核心工作流和差异化价值三个角度判断是否值得借鉴。";
+  }
+
+  if (category === "tool") {
+    return "自动详细解读暂不可用。可先依据上方来源摘要了解项目，再到官方文档核对安装方式、主要能力、兼容性和当前限制。";
+  }
+
+  return "自动详细解读暂不可用。上方内容来自抓取到的来源摘要；建议通过官方原文核对具体变更、适用范围和限制。";
+}
+
 function inferProductName(title: string) {
   return title
     .replace(/发布|上线|推出|受到关注|开放|新版本|工具|产品/g, "")
@@ -183,11 +198,8 @@ export function heuristicDecision(item: NormalizedItem): LlmDecision {
   const category = inferCategory(item);
   const contentType = inferContentType(category, text);
   const tags = inferTags(item, category, boosts);
-  const whatHappened = sentence(item.summary, item.title);
-  const whyItMatters =
-    boosts.length > 0
-      ? `它命中 ${boosts.slice(0, 3).join(" / ")}，和个人开发者的工具链、项目机会或产品判断相关。`
-      : "它与 AI/开发者信息流相关，适合作为低成本跟进候选。";
+  const whatHappened = sourceBrief(item.summary, item.title);
+  const whyItMatters = fallbackContext(category);
   const action = actionForCategory(category, item);
   const base = category === "hackathon" || category === "tool" ? 6 : 5;
   const importance = Math.max(
@@ -226,10 +238,7 @@ export function heuristicDecision(item: NormalizedItem): LlmDecision {
             "把 AI 能力包装成用户能立即验证的结果。"
           ]
         : [],
-    reason:
-      boosts.length > 0
-        ? `匹配个人偏好：${boosts.slice(0, 3).join(", ")}。`
-        : "与 AI/开发者信息流相关，可作为低成本跟进候选。",
+    reason: whyItMatters,
     summary: whatHappened,
     tags,
     target_user: category === "product" ? "开发者、独立开发者或小团队" : null,

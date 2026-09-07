@@ -77,6 +77,13 @@ function stripHtml(value: string | null) {
     .trim();
 }
 
+function richestText(values: unknown[]) {
+  return values
+    .map((value) => stripHtml(getText(value)))
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.length - left.length)[0] ?? null;
+}
+
 function containsKeyword(item: RawSourceItem, keywords: string[]) {
   if (keywords.length === 0) {
     return true;
@@ -129,11 +136,12 @@ export class RssSourceAdapter implements SourceAdapter {
       .slice(0, this.limit * 2)
       .map((item, index) => {
         const title = stripHtml(getText(item.title)) || "Untitled";
-        const summary =
-          stripHtml(getText(item.description)) ||
-          stripHtml(getText(item.summary)) ||
-          stripHtml(getText(item.content)) ||
-          null;
+        const summary = richestText([
+          item.description,
+          item.summary,
+          item.content,
+          item["content:encoded"],
+        ]);
         const url = getLink(item);
         const publishedAt =
           getText(item.pubDate) ||

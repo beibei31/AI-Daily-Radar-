@@ -74,7 +74,7 @@ function clampScore(value: unknown, fallback: number) {
   return Math.max(1, Math.min(10, Math.round(number)));
 }
 
-function text(value: unknown, fallback: string, maxLength = 260) {
+function text(value: unknown, fallback: string, maxLength = 900) {
   return typeof value === "string" && value.trim()
     ? value.trim().slice(0, maxLength)
     : fallback;
@@ -123,9 +123,17 @@ function parseJson(content: string) {
 function normalizeDecision(item: NormalizedItem, payload: DecisionPayload): LlmDecision {
   const fallback = heuristicDecision(item);
   const category = isCategory(payload.category) ? payload.category : fallback.category;
-  const whatHappened = text(payload.what_happened, payload.summary || fallback.what_happened);
-  const whyItMatters = text(payload.why_it_matters, payload.reason || fallback.why_it_matters);
-  const action = text(payload.action, fallback.action);
+  const whatHappened = text(
+    payload.what_happened,
+    payload.summary || fallback.what_happened,
+    900,
+  );
+  const whyItMatters = text(
+    payload.why_it_matters,
+    payload.reason || fallback.why_it_matters,
+    900,
+  );
+  const action = text(payload.action, fallback.action, 420);
   const isProduct = category === "product";
 
   return {
@@ -146,8 +154,8 @@ function normalizeDecision(item: NormalizedItem, payload: DecisionPayload): LlmD
     inspiration: isProduct
       ? text(payload.inspiration, fallback.inspiration ?? "", 260) || null
       : null,
-    reason: text(payload.reason, fallback.reason),
-    summary: text(payload.summary, fallback.summary),
+    reason: text(payload.reason, fallback.reason, 900),
+    summary: text(payload.summary, fallback.summary, 900),
     tags: stringArray(payload.tags, fallback.tags, 5),
     target_user: isProduct
       ? text(payload.target_user, fallback.target_user ?? "", 120) || null
@@ -308,6 +316,8 @@ function buildBatchMessages(batch: NormalizedItem[], attempt: number): LlmMessag
         "你是一个面向个人开发者的 Tech Radar 编辑。",
         "只保留真正有技术、产品、项目或机会价值的信息，降低融资新闻、企业宣传稿、标题党和转载内容权重。",
         "官方原始来源、技术文档、工程博客、GitHub release/changelog 优先；中文社区只作为二级发现源。",
+        "你的任务不是解释为什么内容被选中，而是让读者不打开原文也能快速理解这件事的大部分内容。",
+        "禁止输出‘命中关键词’、‘匹配偏好’、‘值得关注’等编辑流程话术。只写可从候选资料确认的事实，不得补造资料中没有的功能、数字或结论。",
         "必须返回 JSON object，不要 Markdown，不要解释。",
         retryNote
       ]
@@ -322,7 +332,7 @@ function buildBatchMessages(batch: NormalizedItem[], attempt: number): LlmMessag
         json_example: {
           items: [
             {
-              action: "今天可以实际尝试、记录或拆解什么",
+              action: "结合该项目或事件给出一个具体行动，50至120字",
               category: "tool",
               content_type: "tool",
               id: "candidate id",
@@ -335,12 +345,12 @@ function buildBatchMessages(batch: NormalizedItem[], attempt: number): LlmMessag
               product_takeaways: [
                 "仅 product 类需要；交互 / 定位 / 技术实现 / 获客 / 定价等可偷师点"
               ],
-              reason: "为什么值得关注，中文一句话",
+              reason: "兼容旧字段，等同 why_it_matters",
               summary: "兼容旧字段，等同 what_happened",
               tags: ["Agent", "AI Coding", "MCP"],
               target_user: "仅 product 类需要；目标用户",
-              what_happened: "发生了什么，中文一句话",
-              why_it_matters: "为什么值得我看，对开发者或个人产品有什么意义"
+              what_happened: "120至240字的事实摘要：背景、发布主体、这次变化、主要能力、关键数据或限制",
+              why_it_matters: "180至360字的展开解读：工作方式、适用场景、与原方案的差异、开发者影响和已知限制"
             }
           ]
         },
@@ -355,10 +365,12 @@ function buildBatchMessages(batch: NormalizedItem[], attempt: number): LlmMessag
               keep: true,
               personal_score: "1-10 integer",
               tags: ["最多 5 个短标签，例如 Agent, AI Coding, MCP, Product Pattern"],
-              what_happened: "发生了什么，中文一句话",
-              why_it_matters: "为什么值得我看，对开发者或个人产品有什么意义",
-              action: "今天可以实际尝试、记录或拆解什么",
-              reason: "为什么值得关注，中文一句话",
+              what_happened:
+                "中文 120-240 字。说明背景、谁发布了什么、核心变化、主要能力，以及资料中出现的关键数据或限制。不要写评价流程。",
+              why_it_matters:
+                "中文 180-360 字。展开解释它如何工作、适用场景、与既有方案的差异、对开发者或产品的具体影响和已知限制。资料不足时明确哪些细节尚未给出，不得猜测。",
+              action: "中文 50-120 字。结合当前项目给出可以立即验证的具体步骤，不要使用通用套话。",
+              reason: "兼容旧字段，等同 why_it_matters",
               summary: "兼容旧字段，等同 what_happened",
               product_name: "仅 product 类需要；产品名",
               product_one_liner: "仅 product 类需要；一句话说明做什么",
@@ -391,7 +403,7 @@ function buildBatchMessages(batch: NormalizedItem[], attempt: number): LlmMessag
 async function callLlm(batch: NormalizedItem[]) {
   const result = await requestJsonCompletion({
     buildMessages: (attempt) => buildBatchMessages(batch, attempt),
-    maxTokens: 4000,
+    maxTokens: 9000,
     purpose: "batch"
   });
 

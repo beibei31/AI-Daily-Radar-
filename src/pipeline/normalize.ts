@@ -69,7 +69,7 @@ export function normalizeItems(items: RawSourceItem[]): NormalizedItem[] {
         metadata: item.metadata ?? {},
         publishedAt: parseDate(item.publishedAt),
         source: cleanText(item.source),
-        summary: item.summary ? cleanText(item.summary).slice(0, 700) : null,
+        summary: item.summary ? cleanText(item.summary).slice(0, 1800) : null,
         tags: item.tags ?? [],
         title,
         url: item.url ? item.url.trim() : null
