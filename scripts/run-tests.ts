@@ -15,7 +15,8 @@ import { deduplicate } from "@/src/pipeline/dedupe";
 import { heuristicDecision } from "@/src/pipeline/heuristic";
 import { rankWithLlm } from "@/src/pipeline/llm";
 import { RssSourceAdapter } from "@/src/pipeline/sources/rss";
-import type { NormalizedItem } from "@/src/pipeline/types";
+import { saveToSupabase } from "@/src/pipeline/save";
+import type { NormalizedItem, ScoredItem } from "@/src/pipeline/types";
 
 function item(overrides: Partial<NormalizedItem>): NormalizedItem {
   return {
@@ -199,6 +200,70 @@ async function testRssAdapterUsesRichestAvailableSourceText() {
   }
 }
 
+async function testSaveUpdatesExistingItemForCurrentReportDate() {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalSecret = process.env.SUPABASE_SECRET_KEY;
+  const requests: Array<{ method: string; url: string }> = [];
+
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
+  process.env.SUPABASE_SECRET_KEY = "test-secret";
+  globalThis.fetch = async (input, init) => {
+    const url =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const method = init?.method || (input instanceof Request ? input.method : "GET");
+    requests.push({ method, url });
+
+    if (method === "GET") {
+      return new Response(
+        JSON.stringify([{ id: 42, url: "https://example.com/post" }]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+
+    return new Response(null, { status: 204 });
+  };
+
+  const scored: ScoredItem = {
+    ...item({
+      canonicalUrl: "https://example.com/post",
+      id: "refresh-existing",
+      summary: "新版详细摘要",
+    }),
+    action: "运行官方示例。",
+    category: "tool",
+    content_type: "tool",
+    reason: "新版详细解读",
+    score: 88,
+    summary: "新版详细摘要",
+    tags: ["Agent"],
+    what_happened: "新版详细摘要",
+    why_it_matters: "新版详细解读",
+  };
+
+  try {
+    const result = await saveToSupabase([scored]);
+
+    assert.deepEqual(result, { inserted: 0, skipped: 0, updated: 1 });
+    assert.ok(
+      requests.some(
+        (request) =>
+          request.method === "PATCH" && request.url.includes("id=eq.42"),
+      ),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalSecret === undefined) delete process.env.SUPABASE_SECRET_KEY;
+    else process.env.SUPABASE_SECRET_KEY = originalSecret;
+  }
+}
+
 function testProductPatternFallback() {
   const decision = heuristicDecision(
     item({
@@ -332,6 +397,7 @@ console.log("Exploration archive and source validation tests passed.");
 async function runAsyncTests() {
   await testLlmDecisionPreservesDetailedBrief();
   await testRssAdapterUsesRichestAvailableSourceText();
+  await testSaveUpdatesExistingItemForCurrentReportDate();
 }
 
 runAsyncTests().catch((error) => {

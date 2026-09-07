@@ -34,7 +34,7 @@ function toRow(item: ScoredItem, reportDate: string) {
 
 export async function saveToSupabase(items: ScoredItem[]) {
   if (items.length === 0) {
-    return { inserted: 0, skipped: 0 };
+    return { inserted: 0, skipped: 0, updated: 0 };
   }
 
   const reportDate = getShanghaiDateKey();
@@ -43,7 +43,7 @@ export async function saveToSupabase(items: ScoredItem[]) {
     logger.warn("Supabase write env missing; printing preview instead of inserting.", {
       preview: items.slice(0, 5).map((item) => toRow(item, reportDate))
     });
-    return { inserted: 0, skipped: items.length };
+    return { inserted: 0, skipped: items.length, updated: 0 };
   }
 
   const supabase = getSupabaseWriteClient();
@@ -51,12 +51,12 @@ export async function saveToSupabase(items: ScoredItem[]) {
     .map((item) => item.canonicalUrl || item.url)
     .filter((url): url is string => Boolean(url));
 
-  const existingUrls = new Set<string>();
+  const existingIdsByUrl = new Map<string, number>();
 
   if (urls.length > 0) {
     const { data, error } = await supabase
       .from("daily_items")
-      .select("url")
+      .select("id,url")
       .eq("report_date", reportDate)
       .in("url", urls);
 
@@ -65,30 +65,52 @@ export async function saveToSupabase(items: ScoredItem[]) {
     }
 
     data?.forEach((row) => {
-      if (row.url) {
-        existingUrls.add(row.url);
+      if (row.url && typeof row.id === "number") {
+        existingIdsByUrl.set(row.url, row.id);
       }
     });
   }
 
-  const rows = items
-    .filter((item) => {
-      const url = item.canonicalUrl || item.url;
-      return !url || !existingUrls.has(url);
-    })
-    .map((item) => toRow(item, reportDate));
+  const rowsToInsert: ReturnType<typeof toRow>[] = [];
+  const rowsToUpdate: Array<{ id: number; row: ReturnType<typeof toRow> }> = [];
 
-  if (rows.length === 0) {
-    return { inserted: 0, skipped: items.length };
+  items.forEach((item) => {
+    const url = item.canonicalUrl || item.url;
+    const row = toRow(item, reportDate);
+    const existingId = url ? existingIdsByUrl.get(url) : undefined;
+
+    if (existingId !== undefined) {
+      rowsToUpdate.push({ id: existingId, row });
+    } else {
+      rowsToInsert.push(row);
+    }
+  });
+
+  const updateResults = await Promise.all(
+    rowsToUpdate.map(({ id, row }) =>
+      supabase.from("daily_items").update(row).eq("id", id),
+    ),
+  );
+
+  const updateError = updateResults.find((result) => result.error)?.error;
+
+  if (updateError) {
+    throw updateError;
   }
 
-  const { error } = await supabase.from("daily_items").insert(rows);
+  if (rowsToInsert.length > 0) {
+    const { error } = await supabase.from("daily_items").insert(rowsToInsert);
 
-  if (error) {
-    throw error;
+    if (error) {
+      throw error;
+    }
   }
 
-  return { inserted: rows.length, skipped: items.length - rows.length };
+  return {
+    inserted: rowsToInsert.length,
+    skipped: 0,
+    updated: rowsToUpdate.length,
+  };
 }
 
 function toCuriosityRow(item: CuriosityItem, reportDate: string) {
